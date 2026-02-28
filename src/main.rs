@@ -36,7 +36,7 @@ async fn main() {
     let listen_addr = config.listen_addr.clone();
     let mode = config.mode;
     let state = Arc::new(AppState {
-        store,
+        store: Arc::new(store),
         config,
         openapi_doc: Arc::new(openapi_doc),
     });

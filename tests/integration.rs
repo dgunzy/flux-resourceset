@@ -27,7 +27,7 @@ fn test_app() -> axum::Router {
     let store = Store::in_memory_from_file(&config.seed_file).unwrap();
     let openapi_doc = std::fs::read_to_string(&config.openapi_file).unwrap();
     let state = Arc::new(AppState {
-        store,
+        store: Arc::new(store),
         config,
         openapi_doc: Arc::new(openapi_doc),
     });

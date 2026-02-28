@@ -13,6 +13,8 @@ erDiagram
     CLUSTER ||--o{ ROLEBINDING_REF : "has rolebindings"
     CLUSTER ||--o{ PATCH : "has patches"
     COMPONENT_REF }o--|| CATALOG_ENTRY : "references"
+    NAMESPACE_REF }o--|| NAMESPACE_DEF : "references"
+    ROLEBINDING_REF }o--|| ROLEBINDING_DEF : "references"
 
     CLUSTER {
         string id PK
@@ -37,11 +39,17 @@ erDiagram
     }
     NAMESPACE_REF {
         string id
-        object labels
-        object annotations
     }
     ROLEBINDING_REF {
         string id
+    }
+    NAMESPACE_DEF {
+        string id PK
+        object labels
+        object annotations
+    }
+    ROLEBINDING_DEF {
+        string id PK
         string role
         object[] subjects
     }
@@ -50,6 +58,8 @@ erDiagram
         object key_values
     }
 ```
+
+`cluster.namespaces` and `cluster.rolebindings` are reference arrays (`id` only). Full namespace/rolebinding payloads live in their own definition resources and are resolved during merge.
 
 Resources are **declared**, not scripted. The API merges them. Templates render them. Flux reconciles them.
 

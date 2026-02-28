@@ -6,7 +6,7 @@ use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::{Row, SqlitePool};
 
 use crate::db::DataStoreError;
-use crate::domain::{ClusterDoc, ComponentCatalogDoc, NamespaceRef, RolebindingRef};
+use crate::domain::{ClusterDoc, ComponentCatalogDoc, NamespaceDoc, RolebindingDoc};
 
 #[derive(Debug, Clone)]
 pub struct SqliteStore {
@@ -18,9 +18,9 @@ struct SeedData {
     clusters: Vec<ClusterDoc>,
     platform_components: Vec<ComponentCatalogDoc>,
     #[serde(default)]
-    namespaces: Vec<NamespaceRef>,
+    namespaces: Vec<NamespaceDoc>,
     #[serde(default)]
-    rolebindings: Vec<RolebindingRef>,
+    rolebindings: Vec<RolebindingDoc>,
 }
 
 impl SqliteStore {
@@ -43,7 +43,6 @@ impl SqliteStore {
         let store = Self { pool };
         store.init_schema().await?;
         store.seed_if_empty(seed_file.as_ref()).await?;
-        store.backfill_cluster_references().await?;
         Ok(store)
     }
 
@@ -104,25 +103,7 @@ impl SqliteStore {
         }
 
         let content = std::fs::read_to_string(seed_file)?;
-        let mut seed: SeedData = serde_json::from_str(&content)?;
-        if seed.namespaces.is_empty() {
-            let mut seen = HashMap::<String, NamespaceRef>::new();
-            for cluster in &seed.clusters {
-                for ns in &cluster.namespaces {
-                    seen.entry(ns.id.clone()).or_insert_with(|| ns.clone());
-                }
-            }
-            seed.namespaces = seen.into_values().collect();
-        }
-        if seed.rolebindings.is_empty() {
-            let mut seen = HashMap::<String, RolebindingRef>::new();
-            for cluster in &seed.clusters {
-                for rb in &cluster.rolebindings {
-                    seen.entry(rb.id.clone()).or_insert_with(|| rb.clone());
-                }
-            }
-            seed.rolebindings = seen.into_values().collect();
-        }
+        let seed: SeedData = serde_json::from_str(&content)?;
         let mut tx = self.pool.begin().await?;
 
         for cluster in seed.clusters {
@@ -159,33 +140,6 @@ impl SqliteStore {
                 .bind(payload)
                 .execute(&mut *tx)
                 .await?;
-        }
-
-        tx.commit().await?;
-        Ok(())
-    }
-
-    async fn backfill_cluster_references(&self) -> Result<(), DataStoreError> {
-        let clusters = self.fetch_all_docs::<ClusterDoc>("clusters").await?;
-        let mut tx = self.pool.begin().await?;
-
-        for cluster in &clusters {
-            for namespace in &cluster.namespaces {
-                let payload = serde_json::to_string(namespace)?;
-                sqlx::query("INSERT OR IGNORE INTO namespaces (id, data) VALUES (?1, ?2)")
-                    .bind(&namespace.id)
-                    .bind(payload)
-                    .execute(&mut *tx)
-                    .await?;
-            }
-            for rolebinding in &cluster.rolebindings {
-                let payload = serde_json::to_string(rolebinding)?;
-                sqlx::query("INSERT OR IGNORE INTO rolebindings (id, data) VALUES (?1, ?2)")
-                    .bind(&rolebinding.id)
-                    .bind(payload)
-                    .execute(&mut *tx)
-                    .await?;
-            }
         }
 
         tx.commit().await?;
@@ -284,6 +238,32 @@ impl SqliteStore {
         Ok(ids
             .iter()
             .filter_map(|id| all_map.get(*id).map(|c| (c.id.clone(), c.clone())))
+            .collect())
+    }
+
+    pub async fn get_namespaces_by_ids(
+        &self,
+        ids: &[&str],
+    ) -> Result<HashMap<String, NamespaceDoc>, DataStoreError> {
+        let all = self.fetch_all_docs::<NamespaceDoc>("namespaces").await?;
+        let all_map: HashMap<_, _> = all.into_iter().map(|n| (n.id.clone(), n)).collect();
+        Ok(ids
+            .iter()
+            .filter_map(|id| all_map.get(*id).map(|n| (n.id.clone(), n.clone())))
+            .collect())
+    }
+
+    pub async fn get_rolebindings_by_ids(
+        &self,
+        ids: &[&str],
+    ) -> Result<HashMap<String, RolebindingDoc>, DataStoreError> {
+        let all = self
+            .fetch_all_docs::<RolebindingDoc>("rolebindings")
+            .await?;
+        let all_map: HashMap<_, _> = all.into_iter().map(|rb| (rb.id.clone(), rb)).collect();
+        Ok(ids
+            .iter()
+            .filter_map(|id| all_map.get(*id).map(|rb| (rb.id.clone(), rb.clone())))
             .collect())
     }
 
@@ -403,20 +383,20 @@ impl SqliteStore {
         &self,
         limit: Option<usize>,
         offset: Option<usize>,
-    ) -> Result<Vec<NamespaceRef>, DataStoreError> {
-        let mut rows = self.fetch_all_docs::<NamespaceRef>("namespaces").await?;
+    ) -> Result<Vec<NamespaceDoc>, DataStoreError> {
+        let mut rows = self.fetch_all_docs::<NamespaceDoc>("namespaces").await?;
         rows.sort_by(|a, b| a.id.cmp(&b.id));
         Ok(apply_pagination(rows, limit, offset))
     }
 
-    pub async fn get_namespace(&self, id: &str) -> Result<Option<NamespaceRef>, DataStoreError> {
+    pub async fn get_namespace(&self, id: &str) -> Result<Option<NamespaceDoc>, DataStoreError> {
         self.fetch_doc("namespaces", id).await
     }
 
     pub async fn create_namespace(
         &self,
-        namespace: NamespaceRef,
-    ) -> Result<NamespaceRef, DataStoreError> {
+        namespace: NamespaceDoc,
+    ) -> Result<NamespaceDoc, DataStoreError> {
         if self.get_namespace(&namespace.id).await?.is_some() {
             return Err(DataStoreError::Conflict(format!(
                 "namespace '{}'",
@@ -431,14 +411,14 @@ impl SqliteStore {
     pub async fn put_namespace(
         &self,
         id: &str,
-        mut namespace: NamespaceRef,
-    ) -> Result<NamespaceRef, DataStoreError> {
+        mut namespace: NamespaceDoc,
+    ) -> Result<NamespaceDoc, DataStoreError> {
         namespace.id = id.to_string();
         self.upsert_doc("namespaces", id, &namespace).await?;
         Ok(namespace)
     }
 
-    pub async fn delete_namespace(&self, id: &str) -> Result<NamespaceRef, DataStoreError> {
+    pub async fn delete_namespace(&self, id: &str) -> Result<NamespaceDoc, DataStoreError> {
         self.delete_doc("namespaces", "namespace", id).await
     }
 
@@ -446,9 +426,9 @@ impl SqliteStore {
         &self,
         limit: Option<usize>,
         offset: Option<usize>,
-    ) -> Result<Vec<RolebindingRef>, DataStoreError> {
+    ) -> Result<Vec<RolebindingDoc>, DataStoreError> {
         let mut rows = self
-            .fetch_all_docs::<RolebindingRef>("rolebindings")
+            .fetch_all_docs::<RolebindingDoc>("rolebindings")
             .await?;
         rows.sort_by(|a, b| a.id.cmp(&b.id));
         Ok(apply_pagination(rows, limit, offset))
@@ -457,14 +437,14 @@ impl SqliteStore {
     pub async fn get_rolebinding(
         &self,
         id: &str,
-    ) -> Result<Option<RolebindingRef>, DataStoreError> {
+    ) -> Result<Option<RolebindingDoc>, DataStoreError> {
         self.fetch_doc("rolebindings", id).await
     }
 
     pub async fn create_rolebinding(
         &self,
-        rolebinding: RolebindingRef,
-    ) -> Result<RolebindingRef, DataStoreError> {
+        rolebinding: RolebindingDoc,
+    ) -> Result<RolebindingDoc, DataStoreError> {
         if self.get_rolebinding(&rolebinding.id).await?.is_some() {
             return Err(DataStoreError::Conflict(format!(
                 "rolebinding '{}'",
@@ -479,14 +459,14 @@ impl SqliteStore {
     pub async fn put_rolebinding(
         &self,
         id: &str,
-        mut rolebinding: RolebindingRef,
-    ) -> Result<RolebindingRef, DataStoreError> {
+        mut rolebinding: RolebindingDoc,
+    ) -> Result<RolebindingDoc, DataStoreError> {
         rolebinding.id = id.to_string();
         self.upsert_doc("rolebindings", id, &rolebinding).await?;
         Ok(rolebinding)
     }
 
-    pub async fn delete_rolebinding(&self, id: &str) -> Result<RolebindingRef, DataStoreError> {
+    pub async fn delete_rolebinding(&self, id: &str) -> Result<RolebindingDoc, DataStoreError> {
         self.delete_doc("rolebindings", "rolebinding", id).await
     }
 }

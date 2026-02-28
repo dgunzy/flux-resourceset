@@ -96,24 +96,34 @@ Notice:
 
 ## Namespaces Merge
 
-Simpler — no catalog lookup needed. Data comes directly from `cluster.namespaces`:
+Namespaces now use a reference + lookup model:
 
 ```mermaid
 flowchart TD
-    A["Cluster Document"] --> B["Merge Logic"]
-    B --> C["Flux Response"]
+    A["Cluster Document"] --> C["Merge Logic"]
+    B["Namespace Definitions"] --> C
+    C --> D["Flux Response"]
 
-    A -.- A1["namespaces[]<br/>id, labels, annotations"]
-    C -.- C1["Each namespace gets<br/>cluster block nested in"]
+    A -.- A1["namespaces[]<br/>id references"]
+    B -.- B1["id, labels, annotations"]
+    D -.- D1["Each namespace gets<br/>cluster block nested in"]
 ```
 
-Each namespace entry is returned as-is, with the `cluster` block (name, dns, environment) nested into the response.
+Merge steps:
+
+1. Read `cluster.namespaces[]` as ID references.
+2. Resolve each ID from the namespace definitions store.
+3. Return resolved namespace payload + nested `cluster` block (`name`, `dns`, `environment`).
+4. Any missing referenced IDs are skipped in Flux response generation.
 
 ## Rolebindings Merge
 
-Same pattern as namespaces. Data from `cluster.rolebindings`, with `cluster` block added:
+Rolebindings follow the same pattern as namespaces:
 
-Each rolebinding entry includes `id`, `role`, `subjects[]`, and the nested `cluster` block.
+1. Read `cluster.rolebindings[]` as ID references.
+2. Resolve each ID from the rolebinding definitions store.
+3. Return resolved rolebinding payload (`id`, `role`, `subjects[]`) + nested `cluster` block.
+4. Any missing referenced IDs are skipped in Flux response generation.
 
 ## Why Merge Matters
 

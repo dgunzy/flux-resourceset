@@ -11,21 +11,13 @@
         { "id": "podinfo", "enabled": true, "oci_tag": null, "component_path": null }
       ],
       "namespaces": [
-        { "id": "cert-manager", "labels": { "app": "cert-manager" }, "annotations": {} },
-        { "id": "traefik", "labels": { "app": "traefik" }, "annotations": {} },
-        { "id": "podinfo", "labels": { "app": "podinfo", "team": "platform" }, "annotations": { "owner": "platform" } }
+        { "id": "cert-manager" },
+        { "id": "traefik" },
+        { "id": "podinfo" }
       ],
       "rolebindings": [
-        {
-          "id": "platform-admins",
-          "role": "cluster-admin",
-          "subjects": [{ "kind": "Group", "name": "platform-team", "apiGroup": "rbac.authorization.k8s.io" }]
-        },
-        {
-          "id": "dev-readers",
-          "role": "view",
-          "subjects": [{ "kind": "Group", "name": "dev-team", "apiGroup": "rbac.authorization.k8s.io" }]
-        }
+        { "id": "platform-admins" },
+        { "id": "dev-readers" }
       ],
       "patches": {
         "cert-manager": {
@@ -71,6 +63,27 @@
       "oci_url": "https://stefanprodan.github.io/podinfo",
       "oci_tag": "latest",
       "depends_on": ["traefik"]
+    }
+  ],
+  "namespaces": [
+    { "id": "cert-manager", "labels": { "app": "cert-manager" }, "annotations": {} },
+    { "id": "traefik", "labels": { "app": "traefik" }, "annotations": {} },
+    {
+      "id": "podinfo",
+      "labels": { "app": "podinfo", "team": "platform" },
+      "annotations": { "owner": "platform" }
+    }
+  ],
+  "rolebindings": [
+    {
+      "id": "platform-admins",
+      "role": "cluster-admin",
+      "subjects": [{ "kind": "Group", "name": "platform-team", "apiGroup": "rbac.authorization.k8s.io" }]
+    },
+    {
+      "id": "dev-readers",
+      "role": "view",
+      "subjects": [{ "kind": "Group", "name": "dev-team", "apiGroup": "rbac.authorization.k8s.io" }]
     }
   ]
 }

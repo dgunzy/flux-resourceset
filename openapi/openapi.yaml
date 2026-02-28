@@ -82,19 +82,11 @@ components:
           description: Kubernetes distribution version.
           type: string
         namespaces:
-          description: Namespaces managed for this cluster.
+          description: Namespace references managed for this cluster.
           items:
             properties:
-              annotations:
-                additionalProperties:
-                  type: string
-                type: object
               id:
                 type: string
-              labels:
-                additionalProperties:
-                  type: string
-                type: object
             required:
             - id
             type: object
@@ -127,22 +119,13 @@ components:
             type: object
           type: array
         rolebindings:
-          description: Cluster role bindings managed for this cluster.
+          description: Rolebinding references managed for this cluster.
           items:
             properties:
               id:
                 type: string
-              role:
-                type: string
-              subjects:
-                items:
-                  additionalProperties: true
-                  type: object
-                type: array
             required:
             - id
-            - role
-            - subjects
             type: object
           type: array
         vm_image:

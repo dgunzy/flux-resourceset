@@ -118,7 +118,7 @@ schema:
             component_path:
               type: string
       namespaces:
-        description: Namespaces managed for this cluster.
+        description: Namespace references managed for this cluster.
         type: array
         items:
           type: object
@@ -127,33 +127,16 @@ schema:
           properties:
             id:
               type: string
-            labels:
-              type: object
-              additionalProperties:
-                type: string
-            annotations:
-              type: object
-              additionalProperties:
-                type: string
       rolebindings:
-        description: Cluster role bindings managed for this cluster.
+        description: Rolebinding references managed for this cluster.
         type: array
         items:
           type: object
           required:
             - id
-            - role
-            - subjects
           properties:
             id:
               type: string
-            role:
-              type: string
-            subjects:
-              type: array
-              items:
-                type: object
-                additionalProperties: true
       patches:
         description: Per-cluster per-component key-value substitutions.
         type: object

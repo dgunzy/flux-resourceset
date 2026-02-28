@@ -29,7 +29,7 @@ fn crud_test_app() -> TestApp {
     let store = Store::in_memory_from_file(&config.seed_file).expect("load data store");
     let openapi_doc = std::fs::read_to_string(&config.openapi_file).expect("load openapi");
     let state = Arc::new(AppState {
-        store,
+        store: Arc::new(store),
         config,
         openapi_doc: Arc::new(openapi_doc),
     });
@@ -71,11 +71,7 @@ async fn test_crud_namespace_assignment_reflected_in_flux_endpoint() {
 
     let update_cluster = serde_json::json!({
       "namespaces": [
-        {
-          "id": "demo-dynamic",
-          "labels": {"team": "demo"},
-          "annotations": {"owner": "cli"}
-        }
+        { "id": "demo-dynamic" }
       ]
     });
 
@@ -137,11 +133,7 @@ async fn test_cluster_update_rejects_unknown_namespace_reference() {
 
     let update_cluster = serde_json::json!({
       "namespaces": [
-        {
-          "id": "namespace-does-not-exist",
-          "labels": {"team": "demo"},
-          "annotations": {}
-        }
+        { "id": "namespace-does-not-exist" }
       ]
     });
 
