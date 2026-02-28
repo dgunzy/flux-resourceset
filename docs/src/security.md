@@ -49,8 +49,9 @@ stringData:
 ```
 
 This Secret is either:
-- Pre-installed in the Kairos bootstrap image (for initial clusters)
-- Injected during cluster provisioning (for new clusters)
+- Pre-installed in the cluster's bootstrap image or manifests
+- Injected during cluster provisioning (via cloud-init, Terraform, Cluster API, or manual setup)
+- Managed by an external secrets operator that fetches the token from a vault
 
 ### Upgrading to mTLS
 
@@ -99,7 +100,7 @@ This ConfigMap determines:
 - Which cluster DNS is used in the URL path (determines what data the cluster receives)
 - What environment tier the cluster belongs to
 
-The ConfigMap is injected during VM provisioning and should be treated as immutable after bootstrap.
+The ConfigMap is injected during cluster provisioning and should be treated as immutable after bootstrap.
 
 ## Data Access Control
 

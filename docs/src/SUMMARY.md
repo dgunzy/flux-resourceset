@@ -33,3 +33,7 @@
 - [Local Demo](./local-demo.md)
 - [CLI Usage](./cli-usage.md)
 - [Extending with New Resource Types](./extending.md)
+
+---
+
+- [FAQ](./faq.md)

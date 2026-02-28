@@ -1,6 +1,6 @@
 # Phone-Home Model
 
-The phone-home model is the core architectural pattern. Every child cluster is **self-managing** — it phones home to the API to discover its desired state, then reconciles locally. The management cluster's only job is provisioning VMs and injecting a bootstrap identity. After that, the child cluster is autonomous.
+The phone-home model is the core architectural pattern. Every child cluster is **self-managing** — it phones home to the API to discover its desired state, then reconciles locally. The provisioning layer's only job is creating the cluster infrastructure and injecting a bootstrap identity. After that, the child cluster is autonomous.
 
 ## How It Works
 
@@ -11,8 +11,8 @@ sequenceDiagram
     participant Flux as Flux Operator
     participant API as flux-resourceset API
 
-    Mgmt->>VM: Provision VMs (Kairos images)<br/>Inject cluster-identity ConfigMap
-    VM->>Flux: VMs boot → Flux Operator starts
+    Mgmt->>VM: Provision cluster infrastructure<br/>Inject cluster-identity ConfigMap
+    VM->>Flux: Cluster boots → Flux Operator starts
     Flux->>Flux: Reads cluster-identity ConfigMap<br/>(CLUSTER_NAME, CLUSTER_DNS, ENVIRONMENT)
 
     loop Every reconcile interval
@@ -37,7 +37,7 @@ sequenceDiagram
 
 The bootstrap sequence is designed so that **every cluster starts identically** and differentiates itself only through the API response:
 
-1. **VM provisioning** — The management cluster creates VMs from immutable Kairos images. These images have k0s and Flux Operator bootstrap manifests pre-installed.
+1. **Cluster provisioning** — The infrastructure layer creates the cluster. This could be VMs from immutable OS images, cloud-managed Kubernetes (EKS, AKS, GKE), bare-metal nodes via PXE boot, or any other provisioning method. The Flux Operator bootstrap manifests are pre-installed in the image or applied post-boot.
 
 2. **Identity injection** — A `cluster-identity` ConfigMap is the only cluster-specific data injected during provisioning:
 
@@ -54,7 +54,7 @@ The bootstrap sequence is designed so that **every cluster starts identically** 
       INTERNAL_API_URL: "https://internal-api.internal.example.com"
     ```
 
-3. **Flux bootstrap** — VMs boot. Pre-installed manifests start the Flux Operator and deploy the ResourceSetInputProviders + ResourceSets.
+3. **Flux bootstrap** — The cluster boots. Pre-installed or applied manifests start the Flux Operator and deploy the ResourceSetInputProviders + ResourceSets.
 
 4. **Phone home** — Each ResourceSetInputProvider calls the API using the cluster's DNS name from the identity ConfigMap. The API returns that cluster's specific configuration.
 
@@ -75,17 +75,17 @@ The phone-home model degrades gracefully:
 
 ```mermaid
 graph LR
-    subgraph "Management Cluster Responsibilities"
-        A["VM Provisioning<br/>(k0rdent + Virtrigaud)"]
-        B["DNS Provisioning<br/>(Bindy)"]
+    subgraph "Provisioning Layer"
+        A["Cluster Provisioning<br/>(Terraform, Cluster API,<br/>cloud CLI, PXE, etc.)"]
+        B["DNS / Networking<br/>Setup"]
         C["Identity Injection<br/>(cluster-identity ConfigMap)"]
     end
 
-    subgraph "API Responsibilities"
+    subgraph "API Layer"
         D["Single Source of Truth<br/>for all cluster configuration"]
     end
 
-    subgraph "Child Cluster Responsibilities"
+    subgraph "Child Cluster"
         E["Platform component<br/>deployment & reconciliation"]
         F["Namespace & RBAC<br/>management"]
     end
@@ -96,7 +96,7 @@ graph LR
     D -.->|"polled by"| F
 ```
 
-The management cluster **never** deploys platform components to child clusters. It provisions infrastructure. The child cluster owns its own desired state by polling the API.
+The provisioning layer **never** deploys platform components to child clusters. It creates infrastructure and injects identity. The child cluster owns its own desired state by polling the API. This separation means the provisioning tooling (whether Terraform, Cluster API, Crossplane, custom scripts, or a management cluster) has no ongoing role in platform component management.
 
 ## Per-Resource-Type Providers
 
