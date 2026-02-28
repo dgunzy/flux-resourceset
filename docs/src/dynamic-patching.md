@@ -75,6 +75,8 @@ flowchart TD
 
 The `targetPath` in `valuesFrom` tells Helm where to inject the value in the chart's values tree. This is a standard Flux HelmRelease feature — the innovation is that the values are **computed from the API**, not hardcoded in Git.
 
+In the demo template, each generated values ConfigMap is labeled `reconcile.fluxcd.io/watch: "Enabled"` and each generated HelmRelease uses `interval: 1m`. This gives fast event-driven upgrades when values change, plus a short periodic poll interval.
+
 ## Patching via CLI
 
 The demo includes a CLI command to patch any component with dynamic `key=value` paths:
@@ -116,13 +118,18 @@ Patches are the most granular override — they change individual Helm values wi
 After patching, verify the change propagated:
 
 ```bash
-# Check the HelmRelease values
+# Reconcile quickly
+flux reconcile helmrelease platform-podinfo -n flux-system --with-source
+
+# Check reconcile result
 kubectl get hr -n flux-system platform-podinfo \
-  -o jsonpath='replicas={.spec.values.replicaCount} message={.spec.values.ui.message}{"\n"}'
+  -o jsonpath='ready={.status.conditions[?(@.type=="Ready")].status} reason={.status.conditions[?(@.type=="Ready")].reason} action={.status.lastAttemptedReleaseAction}{"\n"}'
 
 # Check the actual deployment
-kubectl get deploy -n podinfo podinfo -o jsonpath='replicas={.spec.replicas}{"\n"}'
+kubectl get deploy -n podinfo podinfo \
+  -o jsonpath='replicas={.spec.replicas} color={.spec.template.spec.containers[0].env[?(@.name=="PODINFO_UI_COLOR")].value} message={.spec.template.spec.containers[0].env[?(@.name=="PODINFO_UI_MESSAGE")].value}{"\n"}'
 
-# Check the ConfigMap
-kubectl get configmap -n flux-system values-podinfo-demo-cluster-01 -o yaml
+# Check rendered values
+kubectl get configmap -n flux-system values-podinfo-demo-cluster-01 \
+  -o jsonpath='replicas={.data.replicaCount} color={.data.ui\.color} message={.data.ui\.message}{"\n"}'
 ```

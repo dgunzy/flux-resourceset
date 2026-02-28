@@ -10,6 +10,7 @@ Core tools:
 
 - Rust/Cargo (build and run API + CLI)
 - `kubectl`
+- `flux` CLI
 - Docker
 - kind
 - `curl`
@@ -117,8 +118,10 @@ Prerequisites:
 1. Check current rendered state:
 
 ```bash
-kubectl get hr -n flux-system platform-podinfo -o jsonpath='replicas={.spec.values.replicaCount} message={.spec.values.ui.message}{"\n"}'
-kubectl get deploy -n podinfo podinfo -o jsonpath='replicas={.spec.replicas}{"\n"}'
+kubectl get configmap -n flux-system values-podinfo-demo-cluster-01 \
+  -o jsonpath='replicas={.data.replicaCount} color={.data.ui\.color} message={.data.ui\.message}{"\n"}'
+kubectl get deploy -n podinfo podinfo \
+  -o jsonpath='replicas={.spec.replicas} color={.spec.template.spec.containers[0].env[?(@.name=="PODINFO_UI_COLOR")].value} message={.spec.template.spec.containers[0].env[?(@.name=="PODINFO_UI_MESSAGE")].value}{"\n"}'
 ```
 
 2. Patch component values in the API-backed cluster schema:
@@ -133,21 +136,29 @@ kubectl get deploy -n podinfo podinfo -o jsonpath='replicas={.spec.replicas}{"\n
 The command prints `before` and `after` values for the component patch map.
 Patch keys are dynamic string paths; dotted keys (for example `ui.message`) map to nested Helm values.
 
-3. Force reconcile and watch updates(or just wait for flux):
+3. Reconcile fast and watch updates:
 
 ```bash
+# Refresh Flux Operator inputs and rendered resources
 kubectl annotate resourcesetinputprovider platform-components -n flux-system \
   fluxcd.controlplane.io/requestedAt="$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --overwrite
 kubectl annotate resourceset platform-components -n flux-system \
   fluxcd.controlplane.io/requestedAt="$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --overwrite
-kubectl get hr -n flux-system platform-podinfo -w
+
+# Trigger immediate Helm upgrade
+flux reconcile helmrelease platform-podinfo -n flux-system --with-source
+
+kubectl get hr -n flux-system platform-podinfo \
+  -o jsonpath='ready={.status.conditions[?(@.type=="Ready")].status} reason={.status.conditions[?(@.type=="Ready")].reason} action={.status.lastAttemptedReleaseAction}{"\n"}'
 ```
 
 4. Validate the change:
 
 ```bash
-kubectl get hr -n flux-system platform-podinfo -o jsonpath='replicas={.spec.values.replicaCount} message={.spec.values.ui.message}{"\n"}'
-kubectl get deploy -n podinfo podinfo -o jsonpath='replicas={.spec.replicas}{"\n"}'
+kubectl get configmap -n flux-system values-podinfo-demo-cluster-01 \
+  -o jsonpath='replicas={.data.replicaCount} color={.data.ui\.color} message={.data.ui\.message}{"\n"}'
+kubectl get deploy -n podinfo podinfo \
+  -o jsonpath='replicas={.spec.replicas} color={.spec.template.spec.containers[0].env[?(@.name=="PODINFO_UI_COLOR")].value} message={.spec.template.spec.containers[0].env[?(@.name=="PODINFO_UI_MESSAGE")].value}{"\n"}'
 ```
 
 Optional UI check in browser:
@@ -228,12 +239,14 @@ Service endpoints:
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
 | `API_MODE` | no | `read-only` | Runtime mode: `read-only` or `crud` |
+| `STORE_BACKEND` | no | `sqlite` | Data backend: `sqlite` or `memory` |
+| `DATABASE_URL` | no | `sqlite://data/flux-resourceset.db?mode=rwc` | SQLite DSN when `STORE_BACKEND=sqlite` |
 | `AUTH_TOKEN` | yes | none | Bearer token for read routes |
 | `CRUD_AUTH_TOKEN` | no | `AUTH_TOKEN` | Bearer token for write routes in CRUD mode |
-| `DATA_FILE` | no | `data/seed.json` | Seed + persistence file |
+| `SEED_FILE` | no | `data/seed.json` | Seed data file loaded at startup |
 | `OPENAPI_FILE` | no | `openapi/openapi.yaml` | OpenAPI document served at `/openapi.yaml` |
 | `LISTEN_ADDR` | no | `0.0.0.0:8080` | Bind address |
-| `RUST_LOG` | no | `info` | Tracing filter |
+| `RUST_LOG` | no | unset | Tracing filter |
 
 ## Development
 

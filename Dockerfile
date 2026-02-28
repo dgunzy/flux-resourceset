@@ -21,7 +21,7 @@ COPY --from=builder /app/target/release/flux-resourceset /usr/local/bin/flux-res
 COPY data/ /data/
 COPY openapi/ /openapi/
 
-ENV DATA_FILE=/data/seed.json
+ENV SEED_FILE=/data/seed.json
 ENV OPENAPI_FILE=/openapi/openapi.yaml
 ENV LISTEN_ADDR=0.0.0.0:8080
 

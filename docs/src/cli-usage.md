@@ -107,6 +107,8 @@ flux-resourceset-cli demo add-namespace demo-cluster-01 team-sandbox \
 # 2. Force reconcile
 kubectl annotate resourcesetinputprovider namespaces -n flux-system \
   fluxcd.controlplane.io/requestedAt="$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --overwrite
+kubectl annotate resourceset namespaces -n flux-system \
+  fluxcd.controlplane.io/requestedAt="$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --overwrite
 
 # 3. Wait and verify
 kubectl get ns team-sandbox
@@ -118,10 +120,16 @@ kubectl get ns team-sandbox
 # 1. Patch
 flux-resourceset-cli demo patch-component demo-cluster-01 podinfo --set replicaCount=5
 
-# 2. Force reconcile
+# 2. Refresh provider + resourceset
 kubectl annotate resourcesetinputprovider platform-components -n flux-system \
   fluxcd.controlplane.io/requestedAt="$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --overwrite
+kubectl annotate resourceset platform-components -n flux-system \
+  fluxcd.controlplane.io/requestedAt="$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --overwrite
 
-# 3. Verify
-kubectl get deploy -n podinfo podinfo -o jsonpath='replicas={.spec.replicas}{"\n"}'
+# 3. Trigger immediate Helm upgrade
+flux reconcile helmrelease platform-podinfo -n flux-system --with-source
+
+# 4. Verify
+kubectl get deploy -n podinfo podinfo \
+  -o jsonpath='replicas={.spec.replicas} color={.spec.template.spec.containers[0].env[?(@.name=="PODINFO_UI_COLOR")].value} message={.spec.template.spec.containers[0].env[?(@.name=="PODINFO_UI_MESSAGE")].value}{"\n"}'
 ```

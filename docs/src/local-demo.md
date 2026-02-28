@@ -15,6 +15,7 @@ Required tools:
 - **Docker** — container runtime for kind
 - **kind** — local Kubernetes clusters
 - **kubectl** — Kubernetes CLI
+- **flux CLI** — manual reconcile commands (`flux reconcile ...`)
 - **curl** — HTTP requests
 
 Optional tools:
@@ -173,8 +174,10 @@ This demonstrates dynamic patching — changing Helm values via the API and watc
 
 ```bash
 # 1. Check current state
-kubectl get hr -n flux-system platform-podinfo \
-  -o jsonpath='replicas={.spec.values.replicaCount} message={.spec.values.ui.message}{"\n"}'
+kubectl get configmap -n flux-system values-podinfo-demo-cluster-01 \
+  -o jsonpath='replicas={.data.replicaCount} color={.data.ui\.color} message={.data.ui\.message}{"\n"}'
+kubectl get deploy -n podinfo podinfo \
+  -o jsonpath='replicas={.spec.replicas} color={.spec.template.spec.containers[0].env[?(@.name=="PODINFO_UI_COLOR")].value} message={.spec.template.spec.containers[0].env[?(@.name=="PODINFO_UI_MESSAGE")].value}{"\n"}'
 
 # 2. Patch via CLI
 ./target/debug/flux-resourceset-cli demo patch-component demo-cluster-01 podinfo \
@@ -182,17 +185,22 @@ kubectl get hr -n flux-system platform-podinfo \
   --set ui.message="Hello from CLI patch" \
   --set ui.color="#3b82f6" | jq .
 
-# 3. Force reconcile
+# 3. Force reconcile inputs/templates
 kubectl annotate resourcesetinputprovider platform-components -n flux-system \
   fluxcd.controlplane.io/requestedAt="$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --overwrite
 kubectl annotate resourceset platform-components -n flux-system \
   fluxcd.controlplane.io/requestedAt="$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --overwrite
 
-# 4. Watch the HelmRelease update
-kubectl get hr -n flux-system platform-podinfo -w
+# 4. Trigger immediate Helm reconcile
+flux reconcile helmrelease platform-podinfo -n flux-system --with-source
 
 # 5. Verify
-kubectl get deploy -n podinfo podinfo -o jsonpath='replicas={.spec.replicas}{"\n"}'
+kubectl get hr -n flux-system platform-podinfo \
+  -o jsonpath='ready={.status.conditions[?(@.type=="Ready")].status} reason={.status.conditions[?(@.type=="Ready")].reason} action={.status.lastAttemptedReleaseAction}{"\n"}'
+kubectl get configmap -n flux-system values-podinfo-demo-cluster-01 \
+  -o jsonpath='replicas={.data.replicaCount} color={.data.ui\.color} message={.data.ui\.message}{"\n"}'
+kubectl get deploy -n podinfo podinfo \
+  -o jsonpath='replicas={.spec.replicas} color={.spec.template.spec.containers[0].env[?(@.name=="PODINFO_UI_COLOR")].value} message={.spec.template.spec.containers[0].env[?(@.name=="PODINFO_UI_MESSAGE")].value}{"\n"}'
 
 # 6. Optional: check the UI
 kubectl -n podinfo port-forward svc/podinfo 9898:9898

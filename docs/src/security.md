@@ -75,7 +75,7 @@ This eliminates shared bearer tokens in favor of per-cluster x.509 certificates.
 |-----------|-----------|----------|----------------|
 | Cluster → API | Outbound from cluster | HTTPS | Bearer token or mTLS |
 | Operator → API (CRUD) | Inbound to CRUD instance | HTTPS | Bearer token (write) |
-| API → Data Store | Internal | MongoDB wire protocol | MongoDB auth |
+| API → Data Store | Local/internal | SQLite file access (or in-memory) | Filesystem permissions |
 
 ### Network Policy Considerations
 
