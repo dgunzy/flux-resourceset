@@ -67,7 +67,7 @@ This separation means:
 
 - **Operators** change cluster state by updating data (API calls), not by writing YAML
 - **Engineers** change how things are deployed by updating templates (Git PRs), not by touching every cluster
-- **Flux** handles the convergence loop — no manual `kubectl apply` or Ansible runs
+- **Flux** handles the convergence loop — no manual `kubectl apply`, no configuration management playbooks, no custom deployment scripts
 
 ## How a Change Flows Through the System
 
@@ -107,19 +107,21 @@ No Git PR. No pipeline. The data change flows through the system automatically.
 
 ## Resource Schemas as API Contracts
 
-Each resource type has a defined schema (managed via [Firestone](https://github.com/firestoned/firestone)):
+Each resource type has a defined schema managed via **[Firestone](https://github.com/firestoned/firestone)** — a resource-based API specification generator that converts JSON Schema definitions into OpenAPI specs, CLI tools, and downstream code generation artifacts.
+
+The schemas:
 
 - **cluster** (v2) — the full cluster document with arrays of component refs, namespace refs, rolebinding refs, and a patches object
 - **platform_component** (v1) — the catalog entry with OCI URLs, versions, dependencies
 - **namespace** (v1) — namespace with labels and annotations
 - **rolebinding** (v1) — role binding with subjects
 
-These schemas are the source of truth for:
-- OpenAPI spec generation (`openapi/openapi.yaml`)
-- Rust model generation (`src/models/`, `src/apis/`)
-- CLI code generation (`src/generated/cli/`)
+These schemas are the single source of truth for:
+- **OpenAPI spec** generation (`openapi/openapi.yaml`) — used for API documentation and client generation
+- **Rust model** generation (`src/models/`, `src/apis/`) — the structs the API service uses
+- **CLI code** generation (`src/generated/cli/`) — the CLI commands for each resource type
 
-When a schema changes, `make generate` regenerates all downstream artifacts.
+When a schema changes, `make generate` regenerates all downstream artifacts. This ensures the API, CLI, and documentation stay in sync with the resource definitions. See the [Firestone documentation](https://github.com/firestoned/firestone) for the full schema language and generator options.
 
 ## Benefits for Enterprise
 

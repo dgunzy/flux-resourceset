@@ -40,7 +40,6 @@ Helpful tools:
 ## Quick Start (Demo Cluster)
 
 ```bash
-cd flux-resourceset
 make demo
 ```
 
@@ -53,21 +52,18 @@ Prerequisite: run `make demo` first. All CLI steps below assume the demo cluster
 1. Port-forward the API:
 
 ```bash
-cd flux-resourceset
 make cli-demo-port-forward
 ```
 
 2. In another terminal, build the CLI once:
 
 ```bash
-cd flux-resourceset
 cargo build --bin flux-resourceset-cli
 ```
 
 3. Export env vars from the demo cluster token secret:
 
 ```bash
-cd flux-resourceset
 export FLUX_API_URL=http://127.0.0.1:8080
 export FLUX_API_TOKEN="$(kubectl -n flux-system get secret internal-api-token -o jsonpath='{.data.token}' | base64 -d)"
 export FLUX_API_WRITE_TOKEN="$FLUX_API_TOKEN"
@@ -76,7 +72,6 @@ export FLUX_API_WRITE_TOKEN="$FLUX_API_TOKEN"
 4. Use the compiled debug binary directly:
 
 ```bash
-cd flux-resourceset
 ./target/debug/flux-resourceset-cli cluster list | jq .
 ./target/debug/flux-resourceset-cli namespace list | jq .
 ./target/debug/flux-resourceset-cli demo flux-namespaces demo-cluster-01.k8s.example.com | jq .
@@ -87,7 +82,6 @@ If `jq` is not installed, run the same commands without `| jq .`.
 Optional: run the automated demo flow (`jq` aware, reconcile + wait included):
 
 ```bash
-cd flux-resourceset
 make cli-demo
 ```
 
@@ -96,7 +90,6 @@ make cli-demo
 Use this if you want to create a namespace with your own name, then attach it to the demo cluster via CLI (no labels/annotations required).
 
 ```bash
-cd flux-resourceset
 ./target/debug/flux-resourceset-cli namespace create your-team-namespace
 ./target/debug/flux-resourceset-cli demo add-namespace demo-cluster-01 your-team-namespace
 ```
@@ -131,7 +124,6 @@ kubectl get deploy -n podinfo podinfo -o jsonpath='replicas={.spec.replicas}{"\n
 2. Patch component values in the API-backed cluster schema:
 
 ```bash
-cd flux-resourceset
 ./target/debug/flux-resourceset-cli demo patch-component demo-cluster-01 podinfo \
   --set replicaCount=3 \
   --set ui.message="Hello from $(whoami) via CLI patch" \
@@ -174,7 +166,6 @@ Then open `http://127.0.0.1:9898` and confirm the UI message/color changed.
 Run read-only:
 
 ```bash
-cd flux-resourceset
 export API_MODE=read-only
 export AUTH_TOKEN=dev-token
 cargo run
@@ -183,7 +174,6 @@ cargo run
 Run CRUD:
 
 ```bash
-cd flux-resourceset
 export API_MODE=crud
 export AUTH_TOKEN=read-token
 export CRUD_AUTH_TOKEN=write-token
@@ -204,7 +194,6 @@ Generated outputs:
 Generate:
 
 ```bash
-cd flux-resourceset
 make generate
 ```
 
@@ -249,7 +238,6 @@ Service endpoints:
 ## Development
 
 ```bash
-cd flux-resourceset
 cargo fmt
 cargo clippy -- -D warnings
 cargo test

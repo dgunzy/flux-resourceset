@@ -143,11 +143,12 @@ No manual cleanup. No orphaned resources. The data model drives everything.
 
 | Benefit | Description |
 |---------|-------------|
-| **Single source of truth** | One API holds the desired state for every cluster. No Ansible inventory, no spreadsheets, no wiki pages. |
-| **Cluster creation in minutes** | Bootstrap VM + phone home + reconcile. No 3-4 week Ansible-driven process. |
+| **Single source of truth** | One API holds the desired state for every cluster. No separate configuration management inventory, no spreadsheets, no wiki pages. |
+| **Cluster creation in minutes** | Bootstrap cluster + phone home + reconcile. No weeks-long process involving manual playbooks and ticket queues. |
 | **Zero state divergence** | API data = ResourceSet input = running cluster state. Drift is automatically corrected. |
 | **Operational velocity** | Change a value via API → Flux reconciles. No PR, no review, no pipeline for operational changes. |
 | **Audit trail** | Every API mutation is logged. Templates changes go through Git. Full traceability. |
 | **Team autonomy** | Platform engineers own templates (Git). Platform operators own data (API). Flux owns reconciliation. |
 | **Failure isolation** | Each cluster is independent. API outage = no new changes, not cluster outage. |
-| **Cost efficiency** | Stateless Rust API uses minimal resources. No management cluster scaling with fleet size. |
+| **Cost efficiency** | Stateless API uses minimal resources. No management cluster scaling with fleet size. |
+| **Infrastructure-agnostic** | Same model works on-prem, in the cloud, at the edge, or across hybrid environments. No vendor lock-in. |

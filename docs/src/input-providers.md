@@ -1,6 +1,8 @@
 # ResourceSetInputProvider
 
-The `ResourceSetInputProvider` is the Flux Operator CRD that tells a ResourceSet where to fetch its input data. In this architecture, every provider uses `type: ExternalService` to call the flux-resourceset API.
+The [`ResourceSetInputProvider`](https://fluxoperator.dev/docs/crd/resourcesetinputprovider/) is the Flux Operator CRD that tells a ResourceSet where to fetch its input data. In this architecture, every provider uses `type: ExternalService` to call the flux-resourceset API.
+
+> **Upstream reference:** See the full [ResourceSetInputProvider CRD documentation](https://fluxoperator.dev/docs/crd/resourcesetinputprovider/) for all supported input types, authentication options, and status conditions.
 
 ## How Providers Work
 
@@ -131,3 +133,9 @@ kubectl describe resourcesetinputprovider platform-components -n flux-system
 # Check ResourceSet status
 kubectl get resourcesets -n flux-system
 ```
+
+## Further Reading
+
+- [ResourceSetInputProvider CRD reference](https://fluxoperator.dev/docs/crd/resourcesetinputprovider/) — full spec, input types, auth options, status conditions
+- [ResourceSet CRD reference](https://fluxoperator.dev/docs/crd/resourceset/) — the templating CRD that consumes provider inputs
+- [Flux Operator](https://fluxoperator.dev/) — project home with installation guides and examples

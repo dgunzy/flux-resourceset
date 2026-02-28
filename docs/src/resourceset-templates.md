@@ -2,6 +2,8 @@
 
 ResourceSet templates are the bridge between API data and Kubernetes resources. They use the Flux Operator's templating engine to render manifests from the `{"inputs": [...]}` response.
 
+> **Upstream reference:** See the full [ResourceSet CRD documentation](https://fluxoperator.dev/docs/crd/resourceset/) for all available spec fields, status conditions, and advanced features like inventory tracking and garbage collection.
+
 ## Template Syntax
 
 ResourceSet uses `<<` and `>>` as delimiters (not `{{`/`}}`). This avoids conflicts with Helm templates and Go templates in the rendered YAML.
@@ -193,3 +195,9 @@ spec:
 3. **Slugify names** — Kubernetes resource names must be DNS-compatible; `slugify` handles this
 4. **Garbage collection** — when an input disappears from the API response, Flux removes the resources that ResourceSet previously created
 5. **No cluster-specific logic in templates** — all cluster differentiation comes from the API data, not from template conditionals
+
+## Further Reading
+
+- [ResourceSet CRD reference](https://fluxoperator.dev/docs/crd/resourceset/) — full spec, status fields, inventory tracking, and health checks
+- [ResourceSetInputProvider CRD reference](https://fluxoperator.dev/docs/crd/resourcesetinputprovider/) — input types, polling configuration, authentication options
+- [Flux Operator GitHub](https://github.com/controlplaneio-fluxcd/flux-operator) — source code and issue tracker

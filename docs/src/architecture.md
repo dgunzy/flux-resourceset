@@ -113,3 +113,46 @@ sequenceDiagram
 | **Per-cluster overrides** | Branch strategies or overlay directories | First-class `patches` object per cluster |
 | **Audit trail** | Git history | API audit log + Git history for templates |
 | **Dynamic response** | Static YAML files | Merge logic computes cluster-specific state |
+
+### vs. Direct Kubernetes API Access
+
+A common question is: why not have operators `kubectl apply` directly, or build tooling that talks to the Kubernetes API on each cluster? See the [FAQ](./faq.md#why-an-api-instead-of-direct-kubernetes-api-access) for a detailed answer. The short version: a purpose-built API gives you a single control point with business logic, validation, audit logging, and integration hooks — things the raw Kubernetes API does not provide at fleet scale.
+
+## Infrastructure Agnostic
+
+This architecture has no dependency on a specific cloud provider, VM provisioner, or Kubernetes distribution. The phone-home pattern requires only one thing: **outbound HTTPS from each cluster to the API**.
+
+```mermaid
+graph TB
+    API["flux-resourceset API"]
+
+    subgraph "On-Premises Data Center"
+        OP1["Bare-metal cluster"]
+        OP2["VMware vSphere cluster"]
+    end
+
+    subgraph "Public Cloud"
+        AWS["AWS EKS"]
+        AZ["Azure AKS"]
+        GCP["GCP GKE"]
+    end
+
+    subgraph "Edge"
+        E1["Edge location 1"]
+        E2["Edge location 2"]
+    end
+
+    OP1 & OP2 -->|"HTTPS"| API
+    AWS & AZ & GCP -->|"HTTPS"| API
+    E1 & E2 -->|"HTTPS"| API
+```
+
+| Environment | How It Works |
+|-------------|-------------|
+| **On-prem bare metal** | Clusters provisioned via PXE boot, cloud-init, or immutable OS images. Flux bootstrap manifests pre-installed or applied post-boot. |
+| **On-prem VMs** | VMware, KVM, Hyper-V, or any hypervisor. Same bootstrap pattern — inject identity, let Flux phone home. |
+| **Public cloud managed K8s** | EKS, AKS, GKE — deploy Flux Operator as an add-on or Helm chart. Providers and ResourceSets applied via GitOps or cluster bootstrap. |
+| **Edge / remote sites** | Lightweight clusters (k3s, k0s, MicroK8s) at edge locations. Phone home over VPN or direct HTTPS. |
+| **Hybrid** | Mix any of the above. Each cluster phones home to the same API regardless of where it runs. |
+
+The cluster provisioning mechanism is completely decoupled from the platform component management. Whether you use Terraform, Crossplane, Cluster API, custom scripts, or manual provisioning — once Flux is running and the cluster-identity ConfigMap exists, the phone-home loop takes over.
