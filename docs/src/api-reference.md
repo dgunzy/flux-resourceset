@@ -208,7 +208,7 @@ Available when `API_MODE=crud`. These follow standard REST patterns.
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/health` | Liveness probe — returns `{"status": "ok"}` |
-| `GET` | `/ready` | Readiness probe — verifies data store connectivity |
+| `GET` | `/ready` | Readiness probe endpoint — currently returns `{"status": "ok"}` |
 | `GET` | `/openapi.yaml` | OpenAPI 3.0 specification document |
 
 ---

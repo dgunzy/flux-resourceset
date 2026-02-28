@@ -5,12 +5,14 @@
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `API_MODE` | no | `read-only` | Runtime mode: `read-only` or `crud` |
+| `STORE_BACKEND` | no | `sqlite` | Data backend: `sqlite` or `memory` |
+| `DATABASE_URL` | no | `sqlite://data/flux-resourceset.db?mode=rwc` | SQLite DSN when `STORE_BACKEND=sqlite` |
 | `AUTH_TOKEN` | yes | — | Bearer token for read routes |
 | `CRUD_AUTH_TOKEN` | no | `AUTH_TOKEN` | Bearer token for write routes in CRUD mode |
-| `DATA_FILE` | no | `data/seed.json` | Seed data and persistence file path |
+| `SEED_FILE` | no | `data/seed.json` | Seed data file loaded at startup |
 | `OPENAPI_FILE` | no | `openapi/openapi.yaml` | OpenAPI document served at `/openapi.yaml` |
 | `LISTEN_ADDR` | no | `0.0.0.0:8080` | Bind address |
-| `RUST_LOG` | no | `info` | Tracing filter directive |
+| `RUST_LOG` | no | unset | Tracing filter directive |
 
 ## Runtime Modes
 
@@ -58,6 +60,12 @@ spec:
           env:
             - name: API_MODE
               value: "read-only"
+            - name: STORE_BACKEND
+              value: "sqlite"
+            - name: DATABASE_URL
+              value: "sqlite:///var/lib/flux-resourceset/flux-resourceset.db?mode=rwc"
+            - name: SEED_FILE
+              value: "/seed/seed.json"
             - name: AUTH_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -80,7 +88,7 @@ spec:
             periodSeconds: 10
           readinessProbe:
             httpGet:
-              path: /ready
+              path: /health
               port: 8080
             initialDelaySeconds: 2
             periodSeconds: 5
@@ -90,7 +98,7 @@ Resource requests are deliberately small — Rust's efficiency means this servic
 
 ### Performance Characteristics
 
-Each request does a data store lookup and a merge. Expected latency is sub-millisecond for the JSON backend and <5ms for MongoDB.
+Each request does a data store lookup and a merge. Expected latency is sub-millisecond for the in-memory backend and typically single-digit milliseconds for SQLite on local SSD.
 
 | Clusters | Poll Interval | Requests/sec |
 |----------|--------------|-------------|

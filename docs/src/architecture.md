@@ -7,7 +7,7 @@ The architecture separates concerns into three layers: the **data plane** (where
 ```mermaid
 graph TB
     subgraph "Data Layer"
-        DB[("Data Store<br/>(JSON / MongoDB)")]
+        DB[("Data Store<br/>(SQLite / In-Memory)")]
     end
 
     subgraph "API Layer"
@@ -40,10 +40,14 @@ graph TB
 
 ### Data Store
 
-In production, this is MongoDB. In the demo, it is a JSON file (`data/seed.json`) loaded at startup. The data store holds two primary collections:
+By default, this is SQLite (configured via `DATABASE_URL`). For lightweight/dev workflows it can run in-memory (`STORE_BACKEND=memory`) using `data/seed.json` as initial state.
+
+The store holds four logical resource sets:
 
 - **clusters** — each cluster's full configuration: assigned components, namespaces, rolebindings, and per-component patches
-- **platform_components** — the component catalog: available components with default versions, OCI URLs, and dependency chains
+- **platform_components** — component catalog entries with defaults, OCI URLs/tags, and dependencies
+- **namespaces** — reusable namespace definitions referenced by clusters
+- **rolebindings** — reusable RBAC rolebinding definitions referenced by clusters
 
 ### API Service (flux-resourceset)
 
