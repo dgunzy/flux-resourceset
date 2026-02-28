@@ -1,0 +1,13 @@
+apiVersion: fluxcd.controlplane.io/v1
+kind: ResourceSetInputProvider
+metadata:
+  name: platform-components
+  namespace: flux-system
+  annotations:
+    fluxcd.controlplane.io/reconcileEvery: "30s"
+spec:
+  type: ExternalService
+  url: http://flux-api-read.flux-system.svc.cluster.local:8080/api/v2/flux/clusters/demo-cluster-01.k8s.example.com/platform-components
+  insecure: true
+  secretRef:
+    name: internal-api-token

@@ -1,0 +1,72 @@
+kind: namespaces
+apiVersion: v1
+versionInPath: false
+metadata:
+  description: Namespace template records assignable to clusters.
+default_query_params:
+  - name: limit
+    description: Maximum number of records to return.
+    in: query
+    schema:
+      type: integer
+  - name: offset
+    description: Number of records to skip.
+    in: query
+    schema:
+      type: integer
+descriptions:
+  resource:
+    get: List namespaces.
+    post: Create a namespace.
+  instance:
+    get: Get a namespace by id.
+    put: Replace a namespace by id.
+    delete: Delete a namespace by id.
+methods:
+  resource:
+    - get
+    - post
+  instance:
+    - get
+    - put
+    - delete
+  instance_attrs: []
+security:
+  scheme:
+    bearer_auth:
+      scheme: bearer
+      type: http
+      bearerFormat: JWT
+  resource:
+    - post
+  instance:
+    - put
+    - delete
+  instance_attrs: []
+schema:
+  type: array
+  key:
+    name: id
+    description: Namespace identifier.
+    schema:
+      type: string
+  items:
+    type: object
+    required:
+      - id
+    properties:
+      id:
+        expose: false
+        description: Namespace identifier.
+        schema:
+          type: string
+      labels:
+        description: Namespace labels.
+        type: object
+        additionalProperties:
+          type: string
+      annotations:
+        description: Namespace annotations.
+        type: object
+        additionalProperties:
+          type: string

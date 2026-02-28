@@ -1,0 +1,14 @@
+[tool.poetry]
+name = "flux-resourceset-codegen"
+version = "0.1.0"
+description = "Firestone/OpenAPI code generation tooling for flux-resourceset"
+authors = ["flux-resourceset contributors"]
+package-mode = false
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.14"
+firestoned = "0.10.5"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

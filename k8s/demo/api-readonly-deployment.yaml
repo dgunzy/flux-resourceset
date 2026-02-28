@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flux-api-readonly
+  namespace: flux-system
+  labels:
+    app: flux-api-readonly
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: flux-api-readonly
+  template:
+    metadata:
+      labels:
+        app: flux-api-readonly
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: flux-api
+          image: flux-resourceset:local
+          ports:
+            - containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: API_MODE
+              value: read-only
+            - name: STORE_BACKEND
+              value: sqlite
+            - name: DATABASE_URL
+              value: sqlite:///var/lib/flux-resourceset/flux-resourceset.db?mode=rwc
+            - name: SEED_FILE
+              value: /seed/seed.json
+            - name: AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: internal-api-token
+                  key: token
+            - name: OPENAPI_FILE
+              value: /openapi/openapi.yaml
+            - name: LISTEN_ADDR
+              value: "0.0.0.0:8080"
+            - name: RUST_LOG
+              value: info
+          volumeMounts:
+            - name: seed-data-source
+              mountPath: /seed
+              readOnly: true
+            - name: sqlite-db
+              mountPath: /var/lib/flux-resourceset
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: seed-data-source
+          configMap:
+            name: flux-api-seed-data
+        - name: sqlite-db
+          persistentVolumeClaim:
+            claimName: flux-api-db

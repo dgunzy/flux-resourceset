@@ -1,0 +1,724 @@
+openapi: "3.0.3"
+info:
+  title: Flux ResourceSet Internal API
+  description: Internal API for Flux phone-home read-only and CRUD operations
+  version: "2.0"
+# https://www.jvt.me/posts/2022/05/29/openapi-json-patch/
+components:
+  schemas:
+    CreateCluster:
+      allOf:
+      - $ref: '#/components/schemas/cluster'
+      - required:
+        - id
+        - cluster_name
+        - cluster_dns
+        - environment
+        - platform_components
+        type: object
+    CreateNamespace:
+      allOf:
+      - $ref: '#/components/schemas/namespace'
+      - required:
+        - id
+        type: object
+    CreatePlatform_component:
+      allOf:
+      - $ref: '#/components/schemas/platform_component'
+      - required:
+        - id
+        - component_path
+        - component_version
+        - oci_url
+        - oci_tag
+        - depends_on
+        type: object
+    CreateRolebinding:
+      allOf:
+      - $ref: '#/components/schemas/rolebinding'
+      - required:
+        - id
+        - role
+        - subjects
+        type: object
+    UpdateCluster:
+      allOf:
+      - $ref: '#/components/schemas/cluster'
+      - type: object
+    UpdateNamespace:
+      allOf:
+      - $ref: '#/components/schemas/namespace'
+      - type: object
+    UpdatePlatform_component:
+      allOf:
+      - $ref: '#/components/schemas/platform_component'
+      - type: object
+    UpdateRolebinding:
+      allOf:
+      - $ref: '#/components/schemas/rolebinding'
+      - type: object
+    cluster:
+      properties:
+        cluster_dns:
+          description: Fully qualified DNS name for phone-home lookups.
+          type: string
+        cluster_name:
+          description: Display name for the cluster.
+          type: string
+        environment:
+          description: Deployment tier for the cluster.
+          enum:
+          - dev
+          - qa
+          - uat
+          - prod
+          type: string
+        id:
+          description: The stable unique cluster identifier.
+          expose: false
+          schema:
+            type: string
+        k0s_version:
+          description: Kubernetes distribution version.
+          type: string
+        namespaces:
+          description: Namespaces managed for this cluster.
+          items:
+            properties:
+              annotations:
+                additionalProperties:
+                  type: string
+                type: object
+              id:
+                type: string
+              labels:
+                additionalProperties:
+                  type: string
+                type: object
+            required:
+            - id
+            type: object
+          type: array
+        node_count:
+          description: Desired node count for the cluster.
+          type: integer
+        patches:
+          additionalProperties:
+            additionalProperties:
+              type: string
+            type: object
+          description: Per-cluster per-component key-value substitutions.
+          type: object
+        platform_components:
+          description: Component references assigned to this cluster.
+          items:
+            properties:
+              component_path:
+                type: string
+              enabled:
+                type: boolean
+              id:
+                type: string
+              oci_tag:
+                type: string
+            required:
+            - id
+            - enabled
+            type: object
+          type: array
+        rolebindings:
+          description: Cluster role bindings managed for this cluster.
+          items:
+            properties:
+              id:
+                type: string
+              role:
+                type: string
+              subjects:
+                items:
+                  additionalProperties: true
+                  type: object
+                type: array
+            required:
+            - id
+            - role
+            - subjects
+            type: object
+          type: array
+        vm_image:
+          description: VM image used to provision nodes.
+          type: string
+      type: object
+    namespace:
+      properties:
+        annotations:
+          additionalProperties:
+            type: string
+          description: Namespace annotations.
+          type: object
+        id:
+          description: Namespace identifier.
+          expose: false
+          schema:
+            type: string
+        labels:
+          additionalProperties:
+            type: string
+          description: Namespace labels.
+          type: object
+      type: object
+    platform_component:
+      properties:
+        cluster_env_enabled:
+          description: Whether the template appends /{environment} to component_path.
+          type: boolean
+        component_path:
+          description: Base path within the OCI artifact.
+          type: string
+        component_version:
+          description: Upstream app version.
+          type: string
+        depends_on:
+          description: Component dependencies.
+          items:
+            type: string
+          type: array
+        id:
+          description: The unique component identifier.
+          expose: false
+          schema:
+            type: string
+        oci_tag:
+          description: Default OCI artifact tag.
+          type: string
+        oci_url:
+          description: OCI registry URL for component source.
+          type: string
+      type: object
+    rolebinding:
+      properties:
+        id:
+          description: Rolebinding identifier.
+          expose: false
+          schema:
+            type: string
+        role:
+          description: Role name to bind.
+          type: string
+        subjects:
+          description: Subject references for the binding.
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+      type: object
+  securitySchemes:
+    bearer_auth:
+      bearerFormat: JWT
+      scheme: bearer
+      type: http
+paths:
+  /clusters:
+    get:
+      description: List clusters.
+      operationId: clusters_get
+      parameters:
+      - description: Filter by cluster DNS.
+        in: query
+        name: cluster_dns
+        required: false
+        schema:
+          type: string
+      - description: Filter by environment tier.
+        in: query
+        name: environment
+        required: false
+        schema:
+          type: string
+      - &id001
+        description: Maximum number of records to return.
+        in: query
+        name: limit
+        schema:
+          type: integer
+      - &id002
+        description: Number of records to skip.
+        in: query
+        name: offset
+        schema:
+          type: integer
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/cluster'
+                type: array
+          description: Response for OK
+      tags:
+      - clusters
+    post:
+      description: Create a new cluster.
+      operationId: clusters_post
+      parameters:
+      - *id001
+      - *id002
+      requestBody:
+        content:
+          application/json:
+            schema: &id003
+              $ref: '#/components/schemas/CreateCluster'
+        description: The request body for /clusters
+        required: true
+      responses:
+        201:
+          content:
+            application/json:
+              schema: *id003
+          description: Response for CREATED
+      security:
+      - bearer_auth: []
+      tags:
+      - clusters
+  /clusters/{id}:
+    delete:
+      description: Delete a cluster by id.
+      operationId: clusters_id_delete
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/cluster'
+          description: Response for OK
+      security:
+      - bearer_auth: []
+      tags:
+      - clusters
+    get:
+      description: Get a cluster by id.
+      operationId: clusters_id_get
+      parameters:
+      - description: Filter by cluster DNS.
+        in: query
+        name: cluster_dns
+        required: false
+        schema:
+          type: string
+      - description: Filter by environment tier.
+        in: query
+        name: environment
+        required: false
+        schema:
+          type: string
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/cluster'
+          description: Response for OK
+      tags:
+      - clusters
+    put:
+      description: Replace an existing cluster by id.
+      operationId: clusters_id_put
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCluster'
+        description: The request body for /clusters/{id}
+        required: true
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateCluster'
+          description: Response for OK
+      security:
+      - bearer_auth: []
+      tags:
+      - clusters
+  /namespaces:
+    get:
+      description: List namespaces.
+      operationId: namespaces_get
+      parameters:
+      - &id004
+        description: Maximum number of records to return.
+        in: query
+        name: limit
+        schema:
+          type: integer
+      - &id005
+        description: Number of records to skip.
+        in: query
+        name: offset
+        schema:
+          type: integer
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/namespace'
+                type: array
+          description: Response for OK
+      tags:
+      - namespaces
+    post:
+      description: Create a namespace.
+      operationId: namespaces_post
+      parameters:
+      - *id004
+      - *id005
+      requestBody:
+        content:
+          application/json:
+            schema: &id006
+              $ref: '#/components/schemas/CreateNamespace'
+        description: The request body for /namespaces
+        required: true
+      responses:
+        201:
+          content:
+            application/json:
+              schema: *id006
+          description: Response for CREATED
+      security:
+      - bearer_auth: []
+      tags:
+      - namespaces
+  /namespaces/{id}:
+    delete:
+      description: Delete a namespace by id.
+      operationId: namespaces_id_delete
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/namespace'
+          description: Response for OK
+      security:
+      - bearer_auth: []
+      tags:
+      - namespaces
+    get:
+      description: Get a namespace by id.
+      operationId: namespaces_id_get
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/namespace'
+          description: Response for OK
+      tags:
+      - namespaces
+    put:
+      description: Replace a namespace by id.
+      operationId: namespaces_id_put
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateNamespace'
+        description: The request body for /namespaces/{id}
+        required: true
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateNamespace'
+          description: Response for OK
+      security:
+      - bearer_auth: []
+      tags:
+      - namespaces
+  /platform_components:
+    get:
+      description: List platform components.
+      operationId: platform_components_get
+      parameters:
+      - description: Filter by component version.
+        in: query
+        name: component_version
+        required: false
+        schema:
+          type: string
+      - &id007
+        description: Maximum number of records to return.
+        in: query
+        name: limit
+        schema:
+          type: integer
+      - &id008
+        description: Number of records to skip.
+        in: query
+        name: offset
+        schema:
+          type: integer
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/platform_component'
+                type: array
+          description: Response for OK
+      tags:
+      - platform_components
+    post:
+      description: Create a platform component.
+      operationId: platform_components_post
+      parameters:
+      - *id007
+      - *id008
+      requestBody:
+        content:
+          application/json:
+            schema: &id009
+              $ref: '#/components/schemas/CreatePlatform_component'
+        description: The request body for /platform_components
+        required: true
+      responses:
+        201:
+          content:
+            application/json:
+              schema: *id009
+          description: Response for CREATED
+      security:
+      - bearer_auth: []
+      tags:
+      - platform_components
+  /platform_components/{id}:
+    delete:
+      description: Delete a platform component by id.
+      operationId: platform_components_id_delete
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/platform_component'
+          description: Response for OK
+      security:
+      - bearer_auth: []
+      tags:
+      - platform_components
+    get:
+      description: Get a platform component by id.
+      operationId: platform_components_id_get
+      parameters:
+      - description: Filter by component version.
+        in: query
+        name: component_version
+        required: false
+        schema:
+          type: string
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/platform_component'
+          description: Response for OK
+      tags:
+      - platform_components
+    put:
+      description: Replace a platform component by id.
+      operationId: platform_components_id_put
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePlatform_component'
+        description: The request body for /platform_components/{id}
+        required: true
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdatePlatform_component'
+          description: Response for OK
+      security:
+      - bearer_auth: []
+      tags:
+      - platform_components
+  /rolebindings:
+    get:
+      description: List rolebindings.
+      operationId: rolebindings_get
+      parameters:
+      - &id010
+        description: Maximum number of records to return.
+        in: query
+        name: limit
+        schema:
+          type: integer
+      - &id011
+        description: Number of records to skip.
+        in: query
+        name: offset
+        schema:
+          type: integer
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/rolebinding'
+                type: array
+          description: Response for OK
+      tags:
+      - rolebindings
+    post:
+      description: Create a rolebinding.
+      operationId: rolebindings_post
+      parameters:
+      - *id010
+      - *id011
+      requestBody:
+        content:
+          application/json:
+            schema: &id012
+              $ref: '#/components/schemas/CreateRolebinding'
+        description: The request body for /rolebindings
+        required: true
+      responses:
+        201:
+          content:
+            application/json:
+              schema: *id012
+          description: Response for CREATED
+      security:
+      - bearer_auth: []
+      tags:
+      - rolebindings
+  /rolebindings/{id}:
+    delete:
+      description: Delete a rolebinding by id.
+      operationId: rolebindings_id_delete
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/rolebinding'
+          description: Response for OK
+      security:
+      - bearer_auth: []
+      tags:
+      - rolebindings
+    get:
+      description: Get a rolebinding by id.
+      operationId: rolebindings_id_get
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/rolebinding'
+          description: Response for OK
+      tags:
+      - rolebindings
+    put:
+      description: Replace a rolebinding by id.
+      operationId: rolebindings_id_put
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRolebinding'
+        description: The request body for /rolebindings/{id}
+        required: true
+      responses:
+        200:
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateRolebinding'
+          description: Response for OK
+      security:
+      - bearer_auth: []
+      tags:
+      - rolebindings

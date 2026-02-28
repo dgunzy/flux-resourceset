@@ -1,0 +1,94 @@
+kind: platform_components
+apiVersion: v1
+versionInPath: false
+metadata:
+  description: Platform component catalog records.
+default_query_params:
+  - name: limit
+    description: Maximum number of records to return.
+    in: query
+    schema:
+      type: integer
+  - name: offset
+    description: Number of records to skip.
+    in: query
+    schema:
+      type: integer
+descriptions:
+  resource:
+    get: List platform components.
+    post: Create a platform component.
+  instance:
+    get: Get a platform component by id.
+    put: Replace a platform component by id.
+    delete: Delete a platform component by id.
+methods:
+  resource:
+    - get
+    - post
+  instance:
+    - get
+    - put
+    - delete
+  instance_attrs: []
+security:
+  scheme:
+    bearer_auth:
+      scheme: bearer
+      type: http
+      bearerFormat: JWT
+  resource:
+    - post
+  instance:
+    - put
+    - delete
+  instance_attrs: []
+schema:
+  type: array
+  key:
+    name: id
+    description: The unique component identifier.
+    schema:
+      type: string
+  query_params:
+    - name: component_version
+      description: Filter by component version.
+      schema:
+        type: string
+      methods:
+        - get
+  items:
+    type: object
+    required:
+      - id
+      - component_path
+      - component_version
+      - oci_url
+      - oci_tag
+      - depends_on
+    properties:
+      id:
+        expose: false
+        description: The unique component identifier.
+        schema:
+          type: string
+      component_path:
+        description: Base path within the OCI artifact.
+        type: string
+      component_version:
+        description: Upstream app version.
+        type: string
+      cluster_env_enabled:
+        description: Whether the template appends /{environment} to component_path.
+        type: boolean
+      oci_url:
+        description: OCI registry URL for component source.
+        type: string
+      oci_tag:
+        description: Default OCI artifact tag.
+        type: string
+      depends_on:
+        description: Component dependencies.
+        type: array
+        items:
+          type: string

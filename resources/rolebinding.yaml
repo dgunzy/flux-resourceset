@@ -1,0 +1,73 @@
+kind: rolebindings
+apiVersion: v1
+versionInPath: false
+metadata:
+  description: Cluster rolebinding template records assignable to clusters.
+default_query_params:
+  - name: limit
+    description: Maximum number of records to return.
+    in: query
+    schema:
+      type: integer
+  - name: offset
+    description: Number of records to skip.
+    in: query
+    schema:
+      type: integer
+descriptions:
+  resource:
+    get: List rolebindings.
+    post: Create a rolebinding.
+  instance:
+    get: Get a rolebinding by id.
+    put: Replace a rolebinding by id.
+    delete: Delete a rolebinding by id.
+methods:
+  resource:
+    - get
+    - post
+  instance:
+    - get
+    - put
+    - delete
+  instance_attrs: []
+security:
+  scheme:
+    bearer_auth:
+      scheme: bearer
+      type: http
+      bearerFormat: JWT
+  resource:
+    - post
+  instance:
+    - put
+    - delete
+  instance_attrs: []
+schema:
+  type: array
+  key:
+    name: id
+    description: Rolebinding identifier.
+    schema:
+      type: string
+  items:
+    type: object
+    required:
+      - id
+      - role
+      - subjects
+    properties:
+      id:
+        expose: false
+        description: Rolebinding identifier.
+        schema:
+          type: string
+      role:
+        description: Role name to bind.
+        type: string
+      subjects:
+        description: Subject references for the binding.
+        type: array
+        items:
+          type: object
+          additionalProperties: true

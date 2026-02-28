@@ -1,0 +1,163 @@
+kind: clusters
+apiVersion: v2
+versionInPath: false
+metadata:
+  description: Cluster records managed by the internal CRUD API.
+default_query_params:
+  - name: limit
+    description: Maximum number of records to return.
+    in: query
+    schema:
+      type: integer
+  - name: offset
+    description: Number of records to skip.
+    in: query
+    schema:
+      type: integer
+descriptions:
+  resource:
+    get: List clusters.
+    post: Create a new cluster.
+  instance:
+    get: Get a cluster by id.
+    put: Replace an existing cluster by id.
+    delete: Delete a cluster by id.
+methods:
+  resource:
+    - get
+    - post
+  instance:
+    - get
+    - put
+    - delete
+  instance_attrs: []
+security:
+  scheme:
+    bearer_auth:
+      scheme: bearer
+      type: http
+      bearerFormat: JWT
+  resource:
+    - post
+  instance:
+    - put
+    - delete
+  instance_attrs: []
+schema:
+  type: array
+  key:
+    name: id
+    description: The stable unique cluster identifier.
+    schema:
+      type: string
+  query_params:
+    - name: cluster_dns
+      description: Filter by cluster DNS.
+      schema:
+        type: string
+      methods:
+        - get
+    - name: environment
+      description: Filter by environment tier.
+      schema:
+        type: string
+      methods:
+        - get
+  items:
+    type: object
+    required:
+      - id
+      - cluster_name
+      - cluster_dns
+      - environment
+      - platform_components
+    properties:
+      id:
+        expose: false
+        description: The stable unique cluster identifier.
+        schema:
+          type: string
+      cluster_name:
+        description: Display name for the cluster.
+        type: string
+      cluster_dns:
+        description: Fully qualified DNS name for phone-home lookups.
+        type: string
+      environment:
+        description: Deployment tier for the cluster.
+        type: string
+        enum:
+          - dev
+          - qa
+          - uat
+          - prod
+      node_count:
+        description: Desired node count for the cluster.
+        type: integer
+      vm_image:
+        description: VM image used to provision nodes.
+        type: string
+      k0s_version:
+        description: Kubernetes distribution version.
+        type: string
+      platform_components:
+        description: Component references assigned to this cluster.
+        type: array
+        items:
+          type: object
+          required:
+            - id
+            - enabled
+          properties:
+            id:
+              type: string
+            enabled:
+              type: boolean
+            oci_tag:
+              type: string
+            component_path:
+              type: string
+      namespaces:
+        description: Namespaces managed for this cluster.
+        type: array
+        items:
+          type: object
+          required:
+            - id
+          properties:
+            id:
+              type: string
+            labels:
+              type: object
+              additionalProperties:
+                type: string
+            annotations:
+              type: object
+              additionalProperties:
+                type: string
+      rolebindings:
+        description: Cluster role bindings managed for this cluster.
+        type: array
+        items:
+          type: object
+          required:
+            - id
+            - role
+            - subjects
+          properties:
+            id:
+              type: string
+            role:
+              type: string
+            subjects:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+      patches:
+        description: Per-cluster per-component key-value substitutions.
+        type: object
+        additionalProperties:
+          type: object
+          additionalProperties:
+            type: string

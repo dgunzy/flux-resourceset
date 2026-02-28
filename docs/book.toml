@@ -1,0 +1,20 @@
+[book]
+authors = ["flux-resourceset contributors"]
+language = "en"
+src = "src"
+title = "Flux ResourceSet — External-Service GitOps for Multi-Cluster Kubernetes"
+
+[build]
+build-dir = "book"
+
+[output.html]
+default-theme = "navy"
+preferred-dark-theme = "navy"
+git-repository-url = "https://github.com/dgunzy/flux-resourceset"
+
+[preprocessor.mermaid]
+command = "mdbook-mermaid"
+
+[output.html.fold]
+enable = true
+level = 1

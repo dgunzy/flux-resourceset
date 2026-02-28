@@ -1,0 +1,8 @@
+{
+  "packageName": "flux_resourceset_client",
+  "packageVersion": "0.1.0",
+  "sortParamsByRequiredFlag": true,
+  "prependFormOrBodyParameters": true,
+  "useSingleRequestParameter": false,
+  "library": "reqwest"
+}

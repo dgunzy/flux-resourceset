@@ -1,0 +1,22 @@
+apiVersion: fluxcd.controlplane.io/v1
+kind: ResourceSet
+metadata:
+  name: namespaces
+  namespace: flux-system
+spec:
+  inputsFrom:
+    - name: namespaces
+  resourcesTemplate: |
+    ---
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: << inputs.id >>
+      labels:
+        <<- range $k, $v := inputs.labels >>
+        << $k >>: "<< $v >>"
+        <<- end >>
+      annotations:
+        <<- range $k, $v := inputs.annotations >>
+        << $k >>: "<< $v >>"
+        <<- end >>

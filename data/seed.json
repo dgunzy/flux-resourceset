@@ -1,0 +1,76 @@
+{
+  "clusters": [
+    {
+      "_id": "demo-cluster-01",
+      "cluster_name": "demo-cluster-01",
+      "cluster_dns": "demo-cluster-01.k8s.example.com",
+      "environment": "dev",
+      "platform_components": [
+        { "id": "cert-manager", "enabled": true, "oci_tag": null, "component_path": null },
+        { "id": "traefik", "enabled": true, "oci_tag": null, "component_path": null },
+        { "id": "podinfo", "enabled": true, "oci_tag": null, "component_path": null }
+      ],
+      "namespaces": [
+        { "id": "cert-manager", "labels": { "app": "cert-manager" }, "annotations": {} },
+        { "id": "traefik", "labels": { "app": "traefik" }, "annotations": {} },
+        { "id": "podinfo", "labels": { "app": "podinfo", "team": "platform" }, "annotations": { "owner": "platform" } }
+      ],
+      "rolebindings": [
+        {
+          "id": "platform-admins",
+          "role": "cluster-admin",
+          "subjects": [{ "kind": "Group", "name": "platform-team", "apiGroup": "rbac.authorization.k8s.io" }]
+        },
+        {
+          "id": "dev-readers",
+          "role": "view",
+          "subjects": [{ "kind": "Group", "name": "dev-team", "apiGroup": "rbac.authorization.k8s.io" }]
+        }
+      ],
+      "patches": {
+        "cert-manager": {
+          "crds.enabled": "true",
+          "startupapicheck.timeout": "5m"
+        },
+        "podinfo": {
+          "replicaCount": "2",
+          "ui.color": "#2f855a",
+          "ui.message": "Hello from Flux ResourceSet dynamic patches"
+        },
+        "traefik": {
+          "deployment.replicas": "1",
+          "service.type": "ClusterIP"
+        }
+      }
+    }
+  ],
+  "platform_components": [
+    {
+      "_id": "cert-manager",
+      "component_path": "cert-manager",
+      "component_version": "latest",
+      "cluster_env_enabled": false,
+      "oci_url": "https://charts.jetstack.io",
+      "oci_tag": "latest",
+      "depends_on": []
+    },
+    {
+      "_id": "traefik",
+      "component_path": "traefik",
+      "component_version": "latest",
+      "cluster_env_enabled": false,
+      "oci_url": "https://traefik.github.io/charts",
+      "oci_tag": "latest",
+      "depends_on": ["cert-manager"]
+    },
+    {
+      "_id": "podinfo",
+      "component_path": "podinfo",
+      "component_version": "latest",
+      "cluster_env_enabled": false,
+      "oci_url": "https://stefanprodan.github.io/podinfo",
+      "oci_tag": "latest",
+      "depends_on": ["traefik"]
+    }
+  ]
+}

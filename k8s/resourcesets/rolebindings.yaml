@@ -1,0 +1,24 @@
+apiVersion: fluxcd.controlplane.io/v1
+kind: ResourceSet
+metadata:
+  name: rolebindings
+  namespace: flux-system
+spec:
+  inputsFrom:
+    - name: rolebindings
+  resourcesTemplate: |
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: << inputs.id >>
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: << inputs.role >>
+    subjects:
+      <<- range $s := inputs.subjects >>
+      - kind: << $s.kind >>
+        name: << $s.name >>
+        apiGroup: << $s.apiGroup >>
+      <<- end >>
