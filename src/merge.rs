@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde::Serialize;
 
-use crate::domain::{ClusterDoc, ComponentCatalogDoc};
+use crate::domain::{ClusterDoc, ComponentCatalogDoc, NamespaceDoc, RolebindingDoc};
 
 #[derive(Debug, Serialize)]
 pub struct FluxResponse<T: Serialize> {
@@ -99,30 +99,42 @@ pub fn merge_platform_components(
     FluxResponse { inputs }
 }
 
-pub fn merge_namespaces(cluster: &ClusterDoc) -> FluxResponse<NamespaceInput> {
+pub fn merge_namespaces(
+    cluster: &ClusterDoc,
+    namespaces: &HashMap<String, NamespaceDoc>,
+) -> FluxResponse<NamespaceInput> {
     let inputs = cluster
         .namespaces
         .iter()
-        .map(|ns| NamespaceInput {
-            id: ns.id.clone(),
-            labels: ns.labels.clone(),
-            annotations: ns.annotations.clone(),
-            cluster: cluster_info(cluster),
+        .filter_map(|ns_ref| {
+            let namespace = namespaces.get(&ns_ref.id)?;
+            Some(NamespaceInput {
+                id: namespace.id.clone(),
+                labels: namespace.labels.clone(),
+                annotations: namespace.annotations.clone(),
+                cluster: cluster_info(cluster),
+            })
         })
         .collect();
 
     FluxResponse { inputs }
 }
 
-pub fn merge_rolebindings(cluster: &ClusterDoc) -> FluxResponse<RolebindingInput> {
+pub fn merge_rolebindings(
+    cluster: &ClusterDoc,
+    rolebindings: &HashMap<String, RolebindingDoc>,
+) -> FluxResponse<RolebindingInput> {
     let inputs = cluster
         .rolebindings
         .iter()
-        .map(|rb| RolebindingInput {
-            id: rb.id.clone(),
-            role: rb.role.clone(),
-            subjects: rb.subjects.clone(),
-            cluster: cluster_info(cluster),
+        .filter_map(|rb_ref| {
+            let rolebinding = rolebindings.get(&rb_ref.id)?;
+            Some(RolebindingInput {
+                id: rolebinding.id.clone(),
+                role: rolebinding.role.clone(),
+                subjects: rolebinding.subjects.clone(),
+                cluster: cluster_info(cluster),
+            })
         })
         .collect();
 
@@ -147,7 +159,8 @@ pub fn merge_clusters(clusters: &[ClusterDoc]) -> FluxResponse<ClusterListInput>
 mod tests {
     use super::*;
     use crate::domain::{
-        ClusterComponentRef, ClusterDoc, ComponentCatalogDoc, NamespaceRef, RolebindingRef,
+        ClusterComponentRef, ClusterDoc, ClusterNamespaceRef, ClusterRolebindingRef,
+        ComponentCatalogDoc, NamespaceDoc, RolebindingDoc,
     };
 
     fn test_cluster() -> ClusterDoc {
@@ -179,15 +192,11 @@ mod tests {
                     component_path: Some("custom/ingress/1.0.0".into()),
                 },
             ],
-            namespaces: vec![NamespaceRef {
+            namespaces: vec![ClusterNamespaceRef {
                 id: "podinfo".into(),
-                labels: HashMap::from([("app".into(), "podinfo".into())]),
-                annotations: HashMap::new(),
             }],
-            rolebindings: vec![RolebindingRef {
+            rolebindings: vec![ClusterRolebindingRef {
                 id: "admins".into(),
-                role: "cluster-admin".into(),
-                subjects: vec![serde_json::json!({"kind": "Group", "name": "admins"})],
             }],
             patches: HashMap::from([(
                 "ingress-nginx".into(),
@@ -235,6 +244,28 @@ mod tests {
                 },
             ),
         ])
+    }
+
+    fn test_namespaces() -> HashMap<String, NamespaceDoc> {
+        HashMap::from([(
+            "podinfo".into(),
+            NamespaceDoc {
+                id: "podinfo".into(),
+                labels: HashMap::from([("app".into(), "podinfo".into())]),
+                annotations: HashMap::new(),
+            },
+        )])
+    }
+
+    fn test_rolebindings() -> HashMap<String, RolebindingDoc> {
+        HashMap::from([(
+            "admins".into(),
+            RolebindingDoc {
+                id: "admins".into(),
+                role: "cluster-admin".into(),
+                subjects: vec![serde_json::json!({"kind": "Group", "name": "admins"})],
+            },
+        )])
     }
 
     #[test]
@@ -361,7 +392,8 @@ mod tests {
     #[test]
     fn test_merge_namespaces() {
         let cluster = test_cluster();
-        let resp = merge_namespaces(&cluster);
+        let namespaces = test_namespaces();
+        let resp = merge_namespaces(&cluster, &namespaces);
         assert_eq!(resp.inputs.len(), 1);
         assert_eq!(resp.inputs[0].id, "podinfo");
         assert_eq!(resp.inputs[0].labels.get("app").unwrap(), "podinfo");
@@ -371,7 +403,8 @@ mod tests {
     #[test]
     fn test_merge_rolebindings() {
         let cluster = test_cluster();
-        let resp = merge_rolebindings(&cluster);
+        let rolebindings = test_rolebindings();
+        let resp = merge_rolebindings(&cluster, &rolebindings);
         assert_eq!(resp.inputs.len(), 1);
         assert_eq!(resp.inputs[0].id, "admins");
         assert_eq!(resp.inputs[0].role, "cluster-admin");

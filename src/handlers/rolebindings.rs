@@ -17,5 +17,15 @@ pub async fn get_rolebindings(
         .await?
         .ok_or(AppError::NotFound)?;
 
-    Ok(Json(merge::merge_rolebindings(&cluster)))
+    let rolebinding_ids: Vec<&str> = cluster
+        .rolebindings
+        .iter()
+        .map(|rb| rb.id.as_str())
+        .collect();
+    let rolebindings = state
+        .store
+        .get_rolebindings_by_ids(&rolebinding_ids)
+        .await?;
+
+    Ok(Json(merge::merge_rolebindings(&cluster, &rolebindings)))
 }

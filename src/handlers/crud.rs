@@ -6,7 +6,8 @@ use axum::extract::{Path, Query, State};
 
 use crate::AppState;
 use crate::domain::{
-    ClusterComponentRef, ClusterDoc, ComponentCatalogDoc, NamespaceRef, RolebindingRef,
+    ClusterComponentRef, ClusterDoc, ClusterNamespaceRef, ClusterRolebindingRef,
+    ComponentCatalogDoc, NamespaceDoc, RolebindingDoc,
 };
 use crate::error::AppError;
 
@@ -322,21 +323,13 @@ fn create_cluster_to_domain(input: crate::models::CreateCluster) -> Result<Clust
             .namespaces
             .unwrap_or_default()
             .into_iter()
-            .map(|ns| NamespaceRef {
-                id: ns.id,
-                labels: ns.labels.unwrap_or_default(),
-                annotations: ns.annotations.unwrap_or_default(),
-            })
+            .map(|ns| ClusterNamespaceRef { id: ns.id })
             .collect(),
         rolebindings: input
             .rolebindings
             .unwrap_or_default()
             .into_iter()
-            .map(|rb| RolebindingRef {
-                id: rb.id,
-                role: rb.role,
-                subjects: subjects_to_values(rb.subjects),
-            })
+            .map(|rb| ClusterRolebindingRef { id: rb.id })
             .collect(),
         patches: input.patches.unwrap_or_default(),
     })
@@ -381,21 +374,13 @@ fn apply_cluster_update(cluster: &mut ClusterDoc, update: crate::models::UpdateC
     if let Some(namespaces) = update.namespaces {
         cluster.namespaces = namespaces
             .into_iter()
-            .map(|ns| NamespaceRef {
-                id: ns.id,
-                labels: ns.labels.unwrap_or_default(),
-                annotations: ns.annotations.unwrap_or_default(),
-            })
+            .map(|ns| ClusterNamespaceRef { id: ns.id })
             .collect();
     }
     if let Some(rolebindings) = update.rolebindings {
         cluster.rolebindings = rolebindings
             .into_iter()
-            .map(|rb| RolebindingRef {
-                id: rb.id,
-                role: rb.role,
-                subjects: subjects_to_values(rb.subjects),
-            })
+            .map(|rb| ClusterRolebindingRef { id: rb.id })
             .collect();
     }
     if let Some(patches) = update.patches {
@@ -433,22 +418,14 @@ fn domain_cluster_to_api(cluster: &ClusterDoc) -> crate::models::Cluster {
             cluster
                 .namespaces
                 .iter()
-                .map(|ns| crate::models::ClusterNamespacesInner {
-                    id: ns.id.clone(),
-                    labels: Some(ns.labels.clone()),
-                    annotations: Some(ns.annotations.clone()),
-                })
+                .map(|ns| crate::models::ClusterNamespacesInner { id: ns.id.clone() })
                 .collect(),
         ),
         rolebindings: Some(
             cluster
                 .rolebindings
                 .iter()
-                .map(|rb| crate::models::ClusterRolebindingsInner {
-                    id: rb.id.clone(),
-                    role: rb.role.clone(),
-                    subjects: values_to_subject_maps(&rb.subjects),
-                })
+                .map(|rb| crate::models::ClusterNamespacesInner { id: rb.id.clone() })
                 .collect(),
         ),
         patches: Some(cluster.patches.clone()),
@@ -507,15 +484,15 @@ fn domain_component_to_api(component: &ComponentCatalogDoc) -> crate::models::Pl
 
 fn create_namespace_to_domain(
     input: crate::models::CreateNamespace,
-) -> Result<NamespaceRef, AppError> {
-    Ok(NamespaceRef {
+) -> Result<NamespaceDoc, AppError> {
+    Ok(NamespaceDoc {
         id: required_string_id(input.id, "id")?,
         labels: input.labels.unwrap_or_default(),
         annotations: input.annotations.unwrap_or_default(),
     })
 }
 
-fn domain_namespace_to_api(namespace: &NamespaceRef) -> crate::models::Namespace {
+fn domain_namespace_to_api(namespace: &NamespaceDoc) -> crate::models::Namespace {
     crate::models::Namespace {
         id: id_json(&namespace.id),
         labels: Some(namespace.labels.clone()),
@@ -525,15 +502,15 @@ fn domain_namespace_to_api(namespace: &NamespaceRef) -> crate::models::Namespace
 
 fn create_rolebinding_to_domain(
     input: crate::models::CreateRolebinding,
-) -> Result<RolebindingRef, AppError> {
-    Ok(RolebindingRef {
+) -> Result<RolebindingDoc, AppError> {
+    Ok(RolebindingDoc {
         id: required_string_id(input.id, "id")?,
         role: input.role,
         subjects: subjects_to_values(input.subjects),
     })
 }
 
-fn domain_rolebinding_to_api(rolebinding: &RolebindingRef) -> crate::models::Rolebinding {
+fn domain_rolebinding_to_api(rolebinding: &RolebindingDoc) -> crate::models::Rolebinding {
     crate::models::Rolebinding {
         id: id_json(&rolebinding.id),
         role: Some(rolebinding.role.clone()),

@@ -27,6 +27,7 @@ Helpful tools:
 - Cluster-scoped desired state: inputs are resolved by `cluster_dns` so each cluster gets only its resources.
 - Dynamic updates: operators can change cluster/platform/namespace/rolebinding state through a CRUD API and see Flux reconcile.
 - Production shape: two runtime modes in one binary (`read-only` and `crud`) so read traffic can scale separately from writes.
+- Normalized data model: clusters store references (`id`) to namespace/rolebinding definitions, while platform component refs can include per-cluster overrides (`enabled`, `oci_tag`, `component_path`).
 
 ## ExternalService Flow
 
@@ -88,11 +89,10 @@ make cli-demo
 
 ## Manual Namespace Workflow (No Makefile)
 
-Use this if you want to create a namespace with your own name, then attach it to the demo cluster via CLI (no labels/annotations required).
+Use this if you want to create a namespace with your own name and attach it to the demo cluster in one command.
 
 ```bash
-./target/debug/flux-resourceset-cli namespace create your-team-namespace
-./target/debug/flux-resourceset-cli demo add-namespace demo-cluster-01 your-team-namespace
+./target/debug/flux-resourceset-cli namespace create your-team-namespace --cluster demo-cluster-01
 ```
 
 Force Flux to refresh and verify it was created:

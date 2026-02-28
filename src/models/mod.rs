@@ -4,8 +4,6 @@ pub mod cluster_namespaces_inner;
 pub use self::cluster_namespaces_inner::ClusterNamespacesInner;
 pub mod cluster_platform_components_inner;
 pub use self::cluster_platform_components_inner::ClusterPlatformComponentsInner;
-pub mod cluster_rolebindings_inner;
-pub use self::cluster_rolebindings_inner::ClusterRolebindingsInner;
 pub mod create_cluster;
 pub use self::create_cluster::CreateCluster;
 pub mod create_namespace;

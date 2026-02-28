@@ -171,6 +171,12 @@ Available when `API_MODE=crud`. These follow standard REST patterns.
 | `PUT` | `/clusters/{id}` | Update a cluster |
 | `DELETE` | `/clusters/{id}` | Delete a cluster |
 
+Cluster payload notes:
+
+- `platform_components[]` entries are references with per-cluster override fields (`id`, `enabled`, optional `oci_tag`, optional `component_path`).
+- `namespaces[]` entries are reference objects (`id` only).
+- `rolebindings[]` entries are reference objects (`id` only).
+
 ### Platform Components
 
 | Method | Path | Description |

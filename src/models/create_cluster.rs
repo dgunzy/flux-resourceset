@@ -28,7 +28,7 @@ pub struct CreateCluster {
     /// Kubernetes distribution version.
     #[serde(rename = "k0s_version", skip_serializing_if = "Option::is_none")]
     pub k0s_version: Option<String>,
-    /// Namespaces managed for this cluster.
+    /// Namespace references managed for this cluster.
     #[serde(rename = "namespaces", skip_serializing_if = "Option::is_none")]
     pub namespaces: Option<Vec<models::ClusterNamespacesInner>>,
     /// Desired node count for the cluster.
@@ -41,9 +41,9 @@ pub struct CreateCluster {
     /// Component references assigned to this cluster.
     #[serde(rename = "platform_components")]
     pub platform_components: Vec<models::ClusterPlatformComponentsInner>,
-    /// Cluster role bindings managed for this cluster.
+    /// Rolebinding references managed for this cluster.
     #[serde(rename = "rolebindings", skip_serializing_if = "Option::is_none")]
-    pub rolebindings: Option<Vec<models::ClusterRolebindingsInner>>,
+    pub rolebindings: Option<Vec<models::ClusterNamespacesInner>>,
     /// VM image used to provision nodes.
     #[serde(rename = "vm_image", skip_serializing_if = "Option::is_none")]
     pub vm_image: Option<String>,

@@ -17,5 +17,8 @@ pub async fn get_namespaces(
         .await?
         .ok_or(AppError::NotFound)?;
 
-    Ok(Json(merge::merge_namespaces(&cluster)))
+    let namespace_ids: Vec<&str> = cluster.namespaces.iter().map(|ns| ns.id.as_str()).collect();
+    let namespaces = state.store.get_namespaces_by_ids(&namespace_ids).await?;
+
+    Ok(Json(merge::merge_namespaces(&cluster, &namespaces)))
 }

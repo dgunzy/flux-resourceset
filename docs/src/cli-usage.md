@@ -48,23 +48,39 @@ flux-resourceset-cli namespace list
 
 # Get a specific namespace
 flux-resourceset-cli namespace get cert-manager
+
+# Create namespace record and attach reference to a cluster
+flux-resourceset-cli namespace create team-sandbox --cluster demo-cluster-01 \
+  --label team=sandbox --annotation owner=platform
+
+# Attach/detach an existing namespace record
+flux-resourceset-cli namespace assign team-sandbox --cluster demo-cluster-01
+flux-resourceset-cli namespace unassign team-sandbox --cluster demo-cluster-01
 ```
 
 ### Platform Component Operations
 
 ```bash
 # List all catalog components
-flux-resourceset-cli platform-component list
+flux-resourceset-cli component list
 
 # Get a specific component
-flux-resourceset-cli platform-component get cert-manager
-```
+flux-resourceset-cli component get cert-manager
 
-### Rolebinding Operations
+# Create/ensure catalog component, then attach to cluster
+flux-resourceset-cli component create cert-manager \
+  --component-path core/cert-manager/1.14.0 \
+  --component-version 1.14.0 \
+  --oci-url oci://registry.example/platform-components \
+  --oci-tag v1.0.0 \
+  --cluster demo-cluster-01
 
-```bash
-# List all rolebindings
-flux-resourceset-cli rolebinding list
+# Attach/detach existing component references
+flux-resourceset-cli component assign cert-manager --cluster demo-cluster-01
+flux-resourceset-cli component unassign cert-manager --cluster demo-cluster-01
+
+# Patch per-cluster component values
+flux-resourceset-cli component patch podinfo --cluster demo-cluster-01 --set replicaCount=3
 ```
 
 ### Demo Commands
@@ -100,8 +116,8 @@ flux-resourceset-cli cluster list | jq .
 ### Add a namespace and watch Flux create it
 
 ```bash
-# 1. Add the namespace
-flux-resourceset-cli demo add-namespace demo-cluster-01 team-sandbox \
+# 1. Create namespace + attach reference
+flux-resourceset-cli namespace create team-sandbox --cluster demo-cluster-01 \
   --label team=sandbox --annotation owner=platform
 
 # 2. Force reconcile

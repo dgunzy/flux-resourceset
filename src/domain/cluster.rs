@@ -16,9 +16,9 @@ pub struct ClusterDoc {
     pub k0s_version: Option<String>,
     pub platform_components: Vec<ClusterComponentRef>,
     #[serde(default)]
-    pub namespaces: Vec<NamespaceRef>,
+    pub namespaces: Vec<ClusterNamespaceRef>,
     #[serde(default)]
-    pub rolebindings: Vec<RolebindingRef>,
+    pub rolebindings: Vec<ClusterRolebindingRef>,
     #[serde(default)]
     pub patches: HashMap<String, HashMap<String, String>>,
 }
@@ -32,7 +32,17 @@ pub struct ClusterComponentRef {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct NamespaceRef {
+pub struct ClusterNamespaceRef {
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ClusterRolebindingRef {
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct NamespaceDoc {
     pub id: String,
     #[serde(default)]
     pub labels: HashMap<String, String>,
@@ -41,7 +51,7 @@ pub struct NamespaceRef {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct RolebindingRef {
+pub struct RolebindingDoc {
     pub id: String,
     pub role: String,
     pub subjects: Vec<serde_json::Value>,

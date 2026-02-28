@@ -20,9 +20,10 @@ use axum::response::IntoResponse;
 use axum::routing::get;
 
 use config::ApiMode;
+use db::DataStore;
 
 pub struct AppState {
-    pub store: db::Store,
+    pub store: Arc<dyn DataStore>,
     pub config: config::Config,
     pub openapi_doc: Arc<String>,
 }

@@ -29,6 +29,10 @@ enum Commands {
         #[command(subcommand)]
         command: ClusterCommands,
     },
+    Component {
+        #[command(subcommand)]
+        command: ComponentCommands,
+    },
     Namespace {
         #[command(subcommand)]
         command: NamespaceCommands,
@@ -53,13 +57,82 @@ enum NamespaceCommands {
     },
     Create {
         namespace_id: String,
+        #[arg(long = "cluster")]
+        cluster_id: Option<String>,
         #[arg(long = "label")]
         labels: Vec<String>,
         #[arg(long = "annotation")]
         annotations: Vec<String>,
     },
+    Assign {
+        namespace_id: String,
+        #[arg(long = "cluster")]
+        cluster_id: String,
+    },
+    Unassign {
+        namespace_id: String,
+        #[arg(long = "cluster")]
+        cluster_id: String,
+    },
     Delete {
         namespace_id: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum ComponentCommands {
+    List,
+    Get {
+        component_id: String,
+    },
+    Create {
+        component_id: String,
+        #[arg(long)]
+        component_path: String,
+        #[arg(long)]
+        component_version: String,
+        #[arg(long)]
+        oci_url: String,
+        #[arg(long)]
+        oci_tag: String,
+        #[arg(long, default_value_t = false)]
+        cluster_env_enabled: bool,
+        #[arg(long = "depends-on")]
+        depends_on: Vec<String>,
+        #[arg(long = "cluster")]
+        cluster_id: Option<String>,
+        #[arg(long, default_value_t = true)]
+        enabled: bool,
+        #[arg(long = "cluster-oci-tag")]
+        cluster_oci_tag: Option<String>,
+        #[arg(long = "cluster-component-path")]
+        cluster_component_path: Option<String>,
+    },
+    Assign {
+        component_id: String,
+        #[arg(long = "cluster")]
+        cluster_id: String,
+        #[arg(long, default_value_t = true)]
+        enabled: bool,
+        #[arg(long = "cluster-oci-tag")]
+        cluster_oci_tag: Option<String>,
+        #[arg(long = "cluster-component-path")]
+        cluster_component_path: Option<String>,
+    },
+    Unassign {
+        component_id: String,
+        #[arg(long = "cluster")]
+        cluster_id: String,
+    },
+    Patch {
+        component_id: String,
+        #[arg(long = "cluster")]
+        cluster_id: String,
+        #[arg(long = "set")]
+        values: Vec<String>,
+    },
+    Delete {
+        component_id: String,
     },
 }
 
@@ -123,6 +196,7 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Commands::Cluster { command } => handle_cluster(&clients, command).await,
+        Commands::Component { command } => handle_component(&clients, command).await,
         Commands::Namespace { command } => handle_namespace(&clients, command).await,
         Commands::Demo { command } => handle_demo(&clients, &cli.api_url, command).await,
     }
@@ -143,6 +217,128 @@ async fn handle_cluster(clients: &ApiClients, command: ClusterCommands) -> Resul
     }
 }
 
+async fn handle_component(clients: &ApiClients, command: ComponentCommands) -> Result<()> {
+    match command {
+        ComponentCommands::List => {
+            let rows = apis::platform_components_api::platform_components_get(
+                &clients.read,
+                None,
+                None,
+                None,
+            )
+            .await?;
+            print_json(&rows)
+        }
+        ComponentCommands::Get { component_id } => {
+            let row = apis::platform_components_api::platform_components_id_get(
+                &clients.read,
+                &component_id,
+                None,
+            )
+            .await?;
+            print_json(&row)
+        }
+        ComponentCommands::Create {
+            component_id,
+            component_path,
+            component_version,
+            oci_url,
+            oci_tag,
+            cluster_env_enabled,
+            depends_on,
+            cluster_id,
+            enabled,
+            cluster_oci_tag,
+            cluster_component_path,
+        } => {
+            let create = models::CreatePlatformComponent {
+                id: Some(serde_json::Value::String(component_id.clone())),
+                component_path,
+                component_version,
+                cluster_env_enabled: Some(cluster_env_enabled),
+                oci_url,
+                oci_tag,
+                depends_on,
+            };
+            match apis::platform_components_api::platform_components_post(
+                &clients.write,
+                create,
+                None,
+                None,
+            )
+            .await
+            {
+                Ok(_) => {}
+                Err(apis::Error::ResponseError(content)) if content.status.as_u16() == 409 => {}
+                Err(err) => return Err(err.into()),
+            }
+
+            let component = apis::platform_components_api::platform_components_id_get(
+                &clients.read,
+                &component_id,
+                None,
+            )
+            .await?;
+
+            if let Some(cluster_id) = cluster_id {
+                let updated = upsert_cluster_component_ref(
+                    clients,
+                    &cluster_id,
+                    &component_id,
+                    enabled,
+                    cluster_oci_tag,
+                    cluster_component_path,
+                )
+                .await?;
+                println!("# Component create result");
+                print_json(&component)?;
+                println!("# Cluster assignment result");
+                return print_json(&updated);
+            }
+
+            print_json(&component)
+        }
+        ComponentCommands::Assign {
+            component_id,
+            cluster_id,
+            enabled,
+            cluster_oci_tag,
+            cluster_component_path,
+        } => {
+            let updated = upsert_cluster_component_ref(
+                clients,
+                &cluster_id,
+                &component_id,
+                enabled,
+                cluster_oci_tag,
+                cluster_component_path,
+            )
+            .await?;
+            print_json(&updated)
+        }
+        ComponentCommands::Unassign {
+            component_id,
+            cluster_id,
+        } => {
+            let updated = remove_cluster_component_ref(clients, &cluster_id, &component_id).await?;
+            print_json(&updated)
+        }
+        ComponentCommands::Patch {
+            component_id,
+            cluster_id,
+            values,
+        } => patch_cluster_component(clients, &cluster_id, &component_id, values).await,
+        ComponentCommands::Delete { component_id } => {
+            let row = apis::platform_components_api::platform_components_id_delete(
+                &clients.write,
+                &component_id,
+            )
+            .await?;
+            print_json(&row)
+        }
+    }
+}
+
 async fn handle_namespace(clients: &ApiClients, command: NamespaceCommands) -> Result<()> {
     match command {
         NamespaceCommands::List => {
@@ -155,13 +351,36 @@ async fn handle_namespace(clients: &ApiClients, command: NamespaceCommands) -> R
         }
         NamespaceCommands::Create {
             namespace_id,
+            cluster_id,
             labels,
             annotations,
         } => {
             let labels = parse_key_values(&labels)?;
             let annotations = parse_key_values(&annotations)?;
             let row = upsert_namespace(clients, &namespace_id, labels, annotations).await?;
+            if let Some(cluster_id) = cluster_id {
+                let cluster =
+                    upsert_cluster_namespace_ref(clients, &cluster_id, &namespace_id).await?;
+                println!("# Namespace create result");
+                print_json(&row)?;
+                println!("# Cluster assignment result");
+                return print_json(&cluster);
+            }
             print_json(&row)
+        }
+        NamespaceCommands::Assign {
+            namespace_id,
+            cluster_id,
+        } => {
+            let cluster = upsert_cluster_namespace_ref(clients, &cluster_id, &namespace_id).await?;
+            print_json(&cluster)
+        }
+        NamespaceCommands::Unassign {
+            namespace_id,
+            cluster_id,
+        } => {
+            let cluster = remove_cluster_namespace_ref(clients, &cluster_id, &namespace_id).await?;
+            print_json(&cluster)
         }
         NamespaceCommands::Delete { namespace_id } => {
             let row =
@@ -185,30 +404,7 @@ async fn handle_demo(clients: &ApiClients, api_url: &str, command: DemoCommands)
             let namespace =
                 upsert_namespace(clients, &namespace_id, labels.clone(), annotations.clone())
                     .await?;
-
-            let mut cluster =
-                apis::clusters_api::clusters_id_get(&clients.read, &cluster_id, None, None).await?;
-
-            let mut namespaces = cluster.namespaces.take().unwrap_or_default();
-            if let Some(existing) = namespaces.iter_mut().find(|ns| ns.id == namespace_id) {
-                existing.labels = Some(labels.clone());
-                existing.annotations = Some(annotations.clone());
-            } else {
-                namespaces.push(models::ClusterNamespacesInner {
-                    id: namespace_id,
-                    labels: Some(labels.clone()),
-                    annotations: Some(annotations.clone()),
-                });
-            }
-
-            let mut update = models::UpdateCluster::new();
-            update.namespaces = Some(namespaces);
-
-            apis::clusters_api::clusters_id_put(&clients.write, update, &cluster_id)
-                .await
-                .context("failed to update cluster namespace assignments")?;
-            let updated =
-                apis::clusters_api::clusters_id_get(&clients.read, &cluster_id, None, None).await?;
+            let updated = upsert_cluster_namespace_ref(clients, &cluster_id, &namespace_id).await?;
 
             println!("# Namespace upsert result");
             print_json(&namespace)?;
@@ -238,53 +434,7 @@ async fn handle_demo(clients: &ApiClients, api_url: &str, command: DemoCommands)
             cluster_id,
             component_id,
             values,
-        } => {
-            if values.is_empty() {
-                bail!("no changes requested; provide at least one --set key=value pair");
-            }
-            let values = parse_key_values(&values)?;
-
-            let before =
-                apis::clusters_api::clusters_id_get(&clients.read, &cluster_id, None, None).await?;
-
-            let mut update = models::UpdateCluster::new();
-            let mut patches = before.patches.clone().unwrap_or_default();
-            {
-                let component_values = patches.entry(component_id.clone()).or_default();
-                for (key, value) in values {
-                    component_values.insert(key, value);
-                }
-            }
-            update.patches = Some(patches);
-
-            apis::clusters_api::clusters_id_put(&clients.write, update, &cluster_id)
-                .await
-                .context("failed to patch cluster component values")?;
-
-            let after =
-                apis::clusters_api::clusters_id_get(&clients.read, &cluster_id, None, None).await?;
-
-            let change_summary = serde_json::json!({
-                "cluster_id": cluster_id,
-                "component_id": component_id,
-                "before": {
-                    "environment": before.environment,
-                    "component_patches": before
-                        .patches
-                        .as_ref()
-                        .and_then(|p| p.get(&component_id))
-                },
-                "after": {
-                    "environment": after.environment,
-                    "component_patches": after
-                        .patches
-                        .as_ref()
-                        .and_then(|p| p.get(&component_id))
-                }
-            });
-
-            print_json(&change_summary)
-        }
+        } => patch_cluster_component(clients, &cluster_id, &component_id, values).await,
     }
 }
 
@@ -317,6 +467,166 @@ async fn upsert_namespace(
         }
         Err(err) => Err(err.into()),
     }
+}
+
+async fn upsert_cluster_namespace_ref(
+    clients: &ApiClients,
+    cluster_id: &str,
+    namespace_id: &str,
+) -> Result<models::Cluster> {
+    let mut cluster =
+        apis::clusters_api::clusters_id_get(&clients.read, cluster_id, None, None).await?;
+    let mut namespaces = cluster.namespaces.take().unwrap_or_default();
+    if !namespaces.iter().any(|ns| ns.id == namespace_id) {
+        namespaces.push(models::ClusterNamespacesInner {
+            id: namespace_id.to_string(),
+        });
+    }
+
+    let mut update = models::UpdateCluster::new();
+    update.namespaces = Some(namespaces);
+    apis::clusters_api::clusters_id_put(&clients.write, update, cluster_id)
+        .await
+        .context("failed to update cluster namespace assignments")?;
+    let updated =
+        apis::clusters_api::clusters_id_get(&clients.read, cluster_id, None, None).await?;
+    Ok(updated)
+}
+
+async fn remove_cluster_namespace_ref(
+    clients: &ApiClients,
+    cluster_id: &str,
+    namespace_id: &str,
+) -> Result<models::Cluster> {
+    let mut cluster =
+        apis::clusters_api::clusters_id_get(&clients.read, cluster_id, None, None).await?;
+    let namespaces = cluster
+        .namespaces
+        .take()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|ns| ns.id != namespace_id)
+        .collect();
+    let mut update = models::UpdateCluster::new();
+    update.namespaces = Some(namespaces);
+    apis::clusters_api::clusters_id_put(&clients.write, update, cluster_id)
+        .await
+        .context("failed to update cluster namespace assignments")?;
+    let updated =
+        apis::clusters_api::clusters_id_get(&clients.read, cluster_id, None, None).await?;
+    Ok(updated)
+}
+
+async fn upsert_cluster_component_ref(
+    clients: &ApiClients,
+    cluster_id: &str,
+    component_id: &str,
+    enabled: bool,
+    cluster_oci_tag: Option<String>,
+    cluster_component_path: Option<String>,
+) -> Result<models::Cluster> {
+    let mut cluster =
+        apis::clusters_api::clusters_id_get(&clients.read, cluster_id, None, None).await?;
+    let mut components = cluster.platform_components.take().unwrap_or_default();
+    if let Some(existing) = components
+        .iter_mut()
+        .find(|component| component.id == component_id)
+    {
+        existing.enabled = enabled;
+        existing.oci_tag = cluster_oci_tag;
+        existing.component_path = cluster_component_path;
+    } else {
+        components.push(models::ClusterPlatformComponentsInner {
+            id: component_id.to_string(),
+            enabled,
+            oci_tag: cluster_oci_tag,
+            component_path: cluster_component_path,
+        });
+    }
+
+    let mut update = models::UpdateCluster::new();
+    update.platform_components = Some(components);
+    apis::clusters_api::clusters_id_put(&clients.write, update, cluster_id)
+        .await
+        .context("failed to update cluster component assignments")?;
+    let updated =
+        apis::clusters_api::clusters_id_get(&clients.read, cluster_id, None, None).await?;
+    Ok(updated)
+}
+
+async fn remove_cluster_component_ref(
+    clients: &ApiClients,
+    cluster_id: &str,
+    component_id: &str,
+) -> Result<models::Cluster> {
+    let mut cluster =
+        apis::clusters_api::clusters_id_get(&clients.read, cluster_id, None, None).await?;
+    let components = cluster
+        .platform_components
+        .take()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|component| component.id != component_id)
+        .collect();
+    let mut update = models::UpdateCluster::new();
+    update.platform_components = Some(components);
+    apis::clusters_api::clusters_id_put(&clients.write, update, cluster_id)
+        .await
+        .context("failed to update cluster component assignments")?;
+    let updated =
+        apis::clusters_api::clusters_id_get(&clients.read, cluster_id, None, None).await?;
+    Ok(updated)
+}
+
+async fn patch_cluster_component(
+    clients: &ApiClients,
+    cluster_id: &str,
+    component_id: &str,
+    values: Vec<String>,
+) -> Result<()> {
+    if values.is_empty() {
+        bail!("no changes requested; provide at least one --set key=value pair");
+    }
+    let values = parse_key_values(&values)?;
+
+    let before = apis::clusters_api::clusters_id_get(&clients.read, cluster_id, None, None).await?;
+
+    let mut update = models::UpdateCluster::new();
+    let mut patches = before.patches.clone().unwrap_or_default();
+    {
+        let component_values = patches.entry(component_id.to_string()).or_default();
+        for (key, value) in values {
+            component_values.insert(key, value);
+        }
+    }
+    update.patches = Some(patches);
+
+    apis::clusters_api::clusters_id_put(&clients.write, update, cluster_id)
+        .await
+        .context("failed to patch cluster component values")?;
+
+    let after = apis::clusters_api::clusters_id_get(&clients.read, cluster_id, None, None).await?;
+
+    let change_summary = serde_json::json!({
+        "cluster_id": cluster_id,
+        "component_id": component_id,
+        "before": {
+            "environment": before.environment,
+            "component_patches": before
+                .patches
+                .as_ref()
+                .and_then(|p| p.get(component_id))
+        },
+        "after": {
+            "environment": after.environment,
+            "component_patches": after
+                .patches
+                .as_ref()
+                .and_then(|p| p.get(component_id))
+        }
+    });
+
+    print_json(&change_summary)
 }
 
 fn parse_key_values(values: &[String]) -> Result<HashMap<String, String>> {

@@ -48,7 +48,7 @@ pub struct CreateArgs {
     /// Kubernetes distribution version.
     #[arg(long)]
     pub k0s_version: Option<String>,
-    /// Namespaces managed for this cluster.
+    /// Namespace references managed for this cluster.
     #[arg(long)]
     pub namespaces: Option<String>,
     /// Desired node count for the cluster.
@@ -60,7 +60,7 @@ pub struct CreateArgs {
     /// Component references assigned to this cluster.
     #[arg(long)]
     pub platform_components: String,
-    /// Cluster role bindings managed for this cluster.
+    /// Rolebinding references managed for this cluster.
     #[arg(long)]
     pub rolebindings: Option<String>,
     /// VM image used to provision nodes.
@@ -118,7 +118,7 @@ pub struct UpdateArgs {
     /// Kubernetes distribution version.
     #[arg(long)]
     pub k0s_version: Option<String>,
-    /// Namespaces managed for this cluster.
+    /// Namespace references managed for this cluster.
     #[arg(long)]
     pub namespaces: Option<String>,
     /// Desired node count for the cluster.
@@ -130,7 +130,7 @@ pub struct UpdateArgs {
     /// Component references assigned to this cluster.
     #[arg(long)]
     pub platform_components: Option<String>,
-    /// Cluster role bindings managed for this cluster.
+    /// Rolebinding references managed for this cluster.
     #[arg(long)]
     pub rolebindings: Option<String>,
     /// VM image used to provision nodes.

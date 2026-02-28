@@ -2,9 +2,10 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use tokio::sync::RwLock;
 
-use crate::domain::{ClusterDoc, ComponentCatalogDoc, NamespaceRef, RolebindingRef};
+use crate::domain::{ClusterDoc, ComponentCatalogDoc, NamespaceDoc, RolebindingDoc};
 use crate::sqlite_store::SqliteStore;
 
 #[derive(Debug, thiserror::Error)]
@@ -31,8 +32,8 @@ pub struct InMemoryStore {
 struct StoreData {
     clusters: HashMap<String, ClusterDoc>,
     components: HashMap<String, ComponentCatalogDoc>,
-    namespaces: HashMap<String, NamespaceRef>,
-    rolebindings: HashMap<String, RolebindingRef>,
+    namespaces: HashMap<String, NamespaceDoc>,
+    rolebindings: HashMap<String, RolebindingDoc>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
@@ -40,9 +41,9 @@ struct SeedData {
     clusters: Vec<ClusterDoc>,
     platform_components: Vec<ComponentCatalogDoc>,
     #[serde(default)]
-    namespaces: Vec<NamespaceRef>,
+    namespaces: Vec<NamespaceDoc>,
     #[serde(default)]
-    rolebindings: Vec<RolebindingRef>,
+    rolebindings: Vec<RolebindingDoc>,
 }
 
 impl InMemoryStore {
@@ -72,33 +73,13 @@ impl InMemoryStore {
             data.components.insert(component.id.clone(), component);
         }
 
-        if seed.namespaces.is_empty() {
-            for cluster in data.clusters.values() {
-                for namespace in &cluster.namespaces {
-                    data.namespaces
-                        .entry(namespace.id.clone())
-                        .or_insert_with(|| namespace.clone());
-                }
-            }
-        } else {
-            for namespace in seed.namespaces {
-                data.namespaces.insert(namespace.id.clone(), namespace);
-            }
+        for namespace in seed.namespaces {
+            data.namespaces.insert(namespace.id.clone(), namespace);
         }
 
-        if seed.rolebindings.is_empty() {
-            for cluster in data.clusters.values() {
-                for rolebinding in &cluster.rolebindings {
-                    data.rolebindings
-                        .entry(rolebinding.id.clone())
-                        .or_insert_with(|| rolebinding.clone());
-                }
-            }
-        } else {
-            for rolebinding in seed.rolebindings {
-                data.rolebindings
-                    .insert(rolebinding.id.clone(), rolebinding);
-            }
+        for rolebinding in seed.rolebindings {
+            data.rolebindings
+                .insert(rolebinding.id.clone(), rolebinding);
         }
 
         Self {
@@ -166,6 +147,36 @@ impl InMemoryStore {
                 data.components
                     .get(*id)
                     .map(|component| (component.id.clone(), component.clone()))
+            })
+            .collect())
+    }
+
+    pub async fn get_namespaces_by_ids(
+        &self,
+        ids: &[&str],
+    ) -> Result<HashMap<String, NamespaceDoc>, DataStoreError> {
+        let data = self.inner.read().await;
+        Ok(ids
+            .iter()
+            .filter_map(|id| {
+                data.namespaces
+                    .get(*id)
+                    .map(|namespace| (namespace.id.clone(), namespace.clone()))
+            })
+            .collect())
+    }
+
+    pub async fn get_rolebindings_by_ids(
+        &self,
+        ids: &[&str],
+    ) -> Result<HashMap<String, RolebindingDoc>, DataStoreError> {
+        let data = self.inner.read().await;
+        Ok(ids
+            .iter()
+            .filter_map(|id| {
+                data.rolebindings
+                    .get(*id)
+                    .map(|rolebinding| (rolebinding.id.clone(), rolebinding.clone()))
             })
             .collect())
     }
@@ -309,22 +320,22 @@ impl InMemoryStore {
         &self,
         limit: Option<usize>,
         offset: Option<usize>,
-    ) -> Result<Vec<NamespaceRef>, DataStoreError> {
+    ) -> Result<Vec<NamespaceDoc>, DataStoreError> {
         let data = self.inner.read().await;
         let mut rows: Vec<_> = data.namespaces.values().cloned().collect();
         rows.sort_by(|a, b| a.id.cmp(&b.id));
         Ok(apply_pagination(rows, limit, offset))
     }
 
-    pub async fn get_namespace(&self, id: &str) -> Result<Option<NamespaceRef>, DataStoreError> {
+    pub async fn get_namespace(&self, id: &str) -> Result<Option<NamespaceDoc>, DataStoreError> {
         let data = self.inner.read().await;
         Ok(data.namespaces.get(id).cloned())
     }
 
     pub async fn create_namespace(
         &self,
-        namespace: NamespaceRef,
-    ) -> Result<NamespaceRef, DataStoreError> {
+        namespace: NamespaceDoc,
+    ) -> Result<NamespaceDoc, DataStoreError> {
         let mut data = self.inner.write().await;
         if data.namespaces.contains_key(&namespace.id) {
             return Err(DataStoreError::Conflict(format!(
@@ -341,8 +352,8 @@ impl InMemoryStore {
     pub async fn put_namespace(
         &self,
         id: &str,
-        mut namespace: NamespaceRef,
-    ) -> Result<NamespaceRef, DataStoreError> {
+        mut namespace: NamespaceDoc,
+    ) -> Result<NamespaceDoc, DataStoreError> {
         namespace.id = id.to_string();
         let mut data = self.inner.write().await;
         data.namespaces.insert(id.to_string(), namespace.clone());
@@ -350,7 +361,7 @@ impl InMemoryStore {
         Ok(namespace)
     }
 
-    pub async fn delete_namespace(&self, id: &str) -> Result<NamespaceRef, DataStoreError> {
+    pub async fn delete_namespace(&self, id: &str) -> Result<NamespaceDoc, DataStoreError> {
         let mut data = self.inner.write().await;
         let removed = data
             .namespaces
@@ -364,7 +375,7 @@ impl InMemoryStore {
         &self,
         limit: Option<usize>,
         offset: Option<usize>,
-    ) -> Result<Vec<RolebindingRef>, DataStoreError> {
+    ) -> Result<Vec<RolebindingDoc>, DataStoreError> {
         let data = self.inner.read().await;
         let mut rows: Vec<_> = data.rolebindings.values().cloned().collect();
         rows.sort_by(|a, b| a.id.cmp(&b.id));
@@ -374,15 +385,15 @@ impl InMemoryStore {
     pub async fn get_rolebinding(
         &self,
         id: &str,
-    ) -> Result<Option<RolebindingRef>, DataStoreError> {
+    ) -> Result<Option<RolebindingDoc>, DataStoreError> {
         let data = self.inner.read().await;
         Ok(data.rolebindings.get(id).cloned())
     }
 
     pub async fn create_rolebinding(
         &self,
-        rolebinding: RolebindingRef,
-    ) -> Result<RolebindingRef, DataStoreError> {
+        rolebinding: RolebindingDoc,
+    ) -> Result<RolebindingDoc, DataStoreError> {
         let mut data = self.inner.write().await;
         if data.rolebindings.contains_key(&rolebinding.id) {
             return Err(DataStoreError::Conflict(format!(
@@ -399,8 +410,8 @@ impl InMemoryStore {
     pub async fn put_rolebinding(
         &self,
         id: &str,
-        mut rolebinding: RolebindingRef,
-    ) -> Result<RolebindingRef, DataStoreError> {
+        mut rolebinding: RolebindingDoc,
+    ) -> Result<RolebindingDoc, DataStoreError> {
         rolebinding.id = id.to_string();
         let mut data = self.inner.write().await;
         data.rolebindings
@@ -409,7 +420,7 @@ impl InMemoryStore {
         Ok(rolebinding)
     }
 
-    pub async fn delete_rolebinding(&self, id: &str) -> Result<RolebindingRef, DataStoreError> {
+    pub async fn delete_rolebinding(&self, id: &str) -> Result<RolebindingDoc, DataStoreError> {
         let mut data = self.inner.write().await;
         let removed = data
             .rolebindings
@@ -468,6 +479,26 @@ impl Store {
         match self {
             Self::InMemory(store) => store.get_components_by_ids(ids).await,
             Self::Sqlite(store) => store.get_components_by_ids(ids).await,
+        }
+    }
+
+    pub async fn get_namespaces_by_ids(
+        &self,
+        ids: &[&str],
+    ) -> Result<HashMap<String, NamespaceDoc>, DataStoreError> {
+        match self {
+            Self::InMemory(store) => store.get_namespaces_by_ids(ids).await,
+            Self::Sqlite(store) => store.get_namespaces_by_ids(ids).await,
+        }
+    }
+
+    pub async fn get_rolebindings_by_ids(
+        &self,
+        ids: &[&str],
+    ) -> Result<HashMap<String, RolebindingDoc>, DataStoreError> {
+        match self {
+            Self::InMemory(store) => store.get_rolebindings_by_ids(ids).await,
+            Self::Sqlite(store) => store.get_rolebindings_by_ids(ids).await,
         }
     }
 
@@ -589,14 +620,14 @@ impl Store {
         &self,
         limit: Option<usize>,
         offset: Option<usize>,
-    ) -> Result<Vec<NamespaceRef>, DataStoreError> {
+    ) -> Result<Vec<NamespaceDoc>, DataStoreError> {
         match self {
             Self::InMemory(store) => store.list_namespaces(limit, offset).await,
             Self::Sqlite(store) => store.list_namespaces(limit, offset).await,
         }
     }
 
-    pub async fn get_namespace(&self, id: &str) -> Result<Option<NamespaceRef>, DataStoreError> {
+    pub async fn get_namespace(&self, id: &str) -> Result<Option<NamespaceDoc>, DataStoreError> {
         match self {
             Self::InMemory(store) => store.get_namespace(id).await,
             Self::Sqlite(store) => store.get_namespace(id).await,
@@ -605,8 +636,8 @@ impl Store {
 
     pub async fn create_namespace(
         &self,
-        namespace: NamespaceRef,
-    ) -> Result<NamespaceRef, DataStoreError> {
+        namespace: NamespaceDoc,
+    ) -> Result<NamespaceDoc, DataStoreError> {
         match self {
             Self::InMemory(store) => store.create_namespace(namespace).await,
             Self::Sqlite(store) => store.create_namespace(namespace).await,
@@ -616,15 +647,15 @@ impl Store {
     pub async fn put_namespace(
         &self,
         id: &str,
-        namespace: NamespaceRef,
-    ) -> Result<NamespaceRef, DataStoreError> {
+        namespace: NamespaceDoc,
+    ) -> Result<NamespaceDoc, DataStoreError> {
         match self {
             Self::InMemory(store) => store.put_namespace(id, namespace).await,
             Self::Sqlite(store) => store.put_namespace(id, namespace).await,
         }
     }
 
-    pub async fn delete_namespace(&self, id: &str) -> Result<NamespaceRef, DataStoreError> {
+    pub async fn delete_namespace(&self, id: &str) -> Result<NamespaceDoc, DataStoreError> {
         match self {
             Self::InMemory(store) => store.delete_namespace(id).await,
             Self::Sqlite(store) => store.delete_namespace(id).await,
@@ -635,7 +666,7 @@ impl Store {
         &self,
         limit: Option<usize>,
         offset: Option<usize>,
-    ) -> Result<Vec<RolebindingRef>, DataStoreError> {
+    ) -> Result<Vec<RolebindingDoc>, DataStoreError> {
         match self {
             Self::InMemory(store) => store.list_rolebindings(limit, offset).await,
             Self::Sqlite(store) => store.list_rolebindings(limit, offset).await,
@@ -645,7 +676,7 @@ impl Store {
     pub async fn get_rolebinding(
         &self,
         id: &str,
-    ) -> Result<Option<RolebindingRef>, DataStoreError> {
+    ) -> Result<Option<RolebindingDoc>, DataStoreError> {
         match self {
             Self::InMemory(store) => store.get_rolebinding(id).await,
             Self::Sqlite(store) => store.get_rolebinding(id).await,
@@ -654,8 +685,8 @@ impl Store {
 
     pub async fn create_rolebinding(
         &self,
-        rolebinding: RolebindingRef,
-    ) -> Result<RolebindingRef, DataStoreError> {
+        rolebinding: RolebindingDoc,
+    ) -> Result<RolebindingDoc, DataStoreError> {
         match self {
             Self::InMemory(store) => store.create_rolebinding(rolebinding).await,
             Self::Sqlite(store) => store.create_rolebinding(rolebinding).await,
@@ -665,15 +696,15 @@ impl Store {
     pub async fn put_rolebinding(
         &self,
         id: &str,
-        rolebinding: RolebindingRef,
-    ) -> Result<RolebindingRef, DataStoreError> {
+        rolebinding: RolebindingDoc,
+    ) -> Result<RolebindingDoc, DataStoreError> {
         match self {
             Self::InMemory(store) => store.put_rolebinding(id, rolebinding).await,
             Self::Sqlite(store) => store.put_rolebinding(id, rolebinding).await,
         }
     }
 
-    pub async fn delete_rolebinding(&self, id: &str) -> Result<RolebindingRef, DataStoreError> {
+    pub async fn delete_rolebinding(&self, id: &str) -> Result<RolebindingDoc, DataStoreError> {
         match self {
             Self::InMemory(store) => store.delete_rolebinding(id).await,
             Self::Sqlite(store) => store.delete_rolebinding(id).await,
@@ -687,6 +718,256 @@ fn apply_pagination<T: Clone>(rows: Vec<T>, limit: Option<usize>, offset: Option
     match limit {
         Some(limit) => iter.take(limit).collect(),
         None => iter.collect(),
+    }
+}
+
+#[async_trait]
+pub trait DataStore: Send + Sync {
+    async fn get_cluster_by_dns(&self, dns: &str) -> Result<Option<ClusterDoc>, DataStoreError>;
+    async fn get_all_clusters(&self) -> Result<Vec<ClusterDoc>, DataStoreError>;
+    async fn get_components_by_ids(
+        &self,
+        ids: &[&str],
+    ) -> Result<HashMap<String, ComponentCatalogDoc>, DataStoreError>;
+    async fn get_namespaces_by_ids(
+        &self,
+        ids: &[&str],
+    ) -> Result<HashMap<String, NamespaceDoc>, DataStoreError>;
+    async fn get_rolebindings_by_ids(
+        &self,
+        ids: &[&str],
+    ) -> Result<HashMap<String, RolebindingDoc>, DataStoreError>;
+    async fn list_clusters(
+        &self,
+        cluster_dns: Option<&str>,
+        environment: Option<&str>,
+        limit: Option<usize>,
+        offset: Option<usize>,
+    ) -> Result<Vec<ClusterDoc>, DataStoreError>;
+    async fn get_cluster(&self, id: &str) -> Result<Option<ClusterDoc>, DataStoreError>;
+    async fn create_cluster(&self, cluster: ClusterDoc) -> Result<ClusterDoc, DataStoreError>;
+    async fn put_cluster(
+        &self,
+        id: &str,
+        cluster: ClusterDoc,
+    ) -> Result<ClusterDoc, DataStoreError>;
+    async fn delete_cluster(&self, id: &str) -> Result<ClusterDoc, DataStoreError>;
+    async fn list_platform_components(
+        &self,
+        component_version: Option<&str>,
+        limit: Option<usize>,
+        offset: Option<usize>,
+    ) -> Result<Vec<ComponentCatalogDoc>, DataStoreError>;
+    async fn get_platform_component(
+        &self,
+        id: &str,
+    ) -> Result<Option<ComponentCatalogDoc>, DataStoreError>;
+    async fn create_platform_component(
+        &self,
+        component: ComponentCatalogDoc,
+    ) -> Result<ComponentCatalogDoc, DataStoreError>;
+    async fn put_platform_component(
+        &self,
+        id: &str,
+        component: ComponentCatalogDoc,
+    ) -> Result<ComponentCatalogDoc, DataStoreError>;
+    async fn delete_platform_component(
+        &self,
+        id: &str,
+    ) -> Result<ComponentCatalogDoc, DataStoreError>;
+    async fn list_namespaces(
+        &self,
+        limit: Option<usize>,
+        offset: Option<usize>,
+    ) -> Result<Vec<NamespaceDoc>, DataStoreError>;
+    async fn get_namespace(&self, id: &str) -> Result<Option<NamespaceDoc>, DataStoreError>;
+    async fn create_namespace(
+        &self,
+        namespace: NamespaceDoc,
+    ) -> Result<NamespaceDoc, DataStoreError>;
+    async fn put_namespace(
+        &self,
+        id: &str,
+        namespace: NamespaceDoc,
+    ) -> Result<NamespaceDoc, DataStoreError>;
+    async fn delete_namespace(&self, id: &str) -> Result<NamespaceDoc, DataStoreError>;
+    async fn list_rolebindings(
+        &self,
+        limit: Option<usize>,
+        offset: Option<usize>,
+    ) -> Result<Vec<RolebindingDoc>, DataStoreError>;
+    async fn get_rolebinding(&self, id: &str) -> Result<Option<RolebindingDoc>, DataStoreError>;
+    async fn create_rolebinding(
+        &self,
+        rolebinding: RolebindingDoc,
+    ) -> Result<RolebindingDoc, DataStoreError>;
+    async fn put_rolebinding(
+        &self,
+        id: &str,
+        rolebinding: RolebindingDoc,
+    ) -> Result<RolebindingDoc, DataStoreError>;
+    async fn delete_rolebinding(&self, id: &str) -> Result<RolebindingDoc, DataStoreError>;
+}
+
+#[async_trait]
+impl DataStore for Store {
+    async fn get_cluster_by_dns(&self, dns: &str) -> Result<Option<ClusterDoc>, DataStoreError> {
+        Store::get_cluster_by_dns(self, dns).await
+    }
+
+    async fn get_all_clusters(&self) -> Result<Vec<ClusterDoc>, DataStoreError> {
+        Store::get_all_clusters(self).await
+    }
+
+    async fn get_components_by_ids(
+        &self,
+        ids: &[&str],
+    ) -> Result<HashMap<String, ComponentCatalogDoc>, DataStoreError> {
+        Store::get_components_by_ids(self, ids).await
+    }
+
+    async fn get_namespaces_by_ids(
+        &self,
+        ids: &[&str],
+    ) -> Result<HashMap<String, NamespaceDoc>, DataStoreError> {
+        Store::get_namespaces_by_ids(self, ids).await
+    }
+
+    async fn get_rolebindings_by_ids(
+        &self,
+        ids: &[&str],
+    ) -> Result<HashMap<String, RolebindingDoc>, DataStoreError> {
+        Store::get_rolebindings_by_ids(self, ids).await
+    }
+
+    async fn list_clusters(
+        &self,
+        cluster_dns: Option<&str>,
+        environment: Option<&str>,
+        limit: Option<usize>,
+        offset: Option<usize>,
+    ) -> Result<Vec<ClusterDoc>, DataStoreError> {
+        Store::list_clusters(self, cluster_dns, environment, limit, offset).await
+    }
+
+    async fn get_cluster(&self, id: &str) -> Result<Option<ClusterDoc>, DataStoreError> {
+        Store::get_cluster(self, id).await
+    }
+
+    async fn create_cluster(&self, cluster: ClusterDoc) -> Result<ClusterDoc, DataStoreError> {
+        Store::create_cluster(self, cluster).await
+    }
+
+    async fn put_cluster(
+        &self,
+        id: &str,
+        cluster: ClusterDoc,
+    ) -> Result<ClusterDoc, DataStoreError> {
+        Store::put_cluster(self, id, cluster).await
+    }
+
+    async fn delete_cluster(&self, id: &str) -> Result<ClusterDoc, DataStoreError> {
+        Store::delete_cluster(self, id).await
+    }
+
+    async fn list_platform_components(
+        &self,
+        component_version: Option<&str>,
+        limit: Option<usize>,
+        offset: Option<usize>,
+    ) -> Result<Vec<ComponentCatalogDoc>, DataStoreError> {
+        Store::list_platform_components(self, component_version, limit, offset).await
+    }
+
+    async fn get_platform_component(
+        &self,
+        id: &str,
+    ) -> Result<Option<ComponentCatalogDoc>, DataStoreError> {
+        Store::get_platform_component(self, id).await
+    }
+
+    async fn create_platform_component(
+        &self,
+        component: ComponentCatalogDoc,
+    ) -> Result<ComponentCatalogDoc, DataStoreError> {
+        Store::create_platform_component(self, component).await
+    }
+
+    async fn put_platform_component(
+        &self,
+        id: &str,
+        component: ComponentCatalogDoc,
+    ) -> Result<ComponentCatalogDoc, DataStoreError> {
+        Store::put_platform_component(self, id, component).await
+    }
+
+    async fn delete_platform_component(
+        &self,
+        id: &str,
+    ) -> Result<ComponentCatalogDoc, DataStoreError> {
+        Store::delete_platform_component(self, id).await
+    }
+
+    async fn list_namespaces(
+        &self,
+        limit: Option<usize>,
+        offset: Option<usize>,
+    ) -> Result<Vec<NamespaceDoc>, DataStoreError> {
+        Store::list_namespaces(self, limit, offset).await
+    }
+
+    async fn get_namespace(&self, id: &str) -> Result<Option<NamespaceDoc>, DataStoreError> {
+        Store::get_namespace(self, id).await
+    }
+
+    async fn create_namespace(
+        &self,
+        namespace: NamespaceDoc,
+    ) -> Result<NamespaceDoc, DataStoreError> {
+        Store::create_namespace(self, namespace).await
+    }
+
+    async fn put_namespace(
+        &self,
+        id: &str,
+        namespace: NamespaceDoc,
+    ) -> Result<NamespaceDoc, DataStoreError> {
+        Store::put_namespace(self, id, namespace).await
+    }
+
+    async fn delete_namespace(&self, id: &str) -> Result<NamespaceDoc, DataStoreError> {
+        Store::delete_namespace(self, id).await
+    }
+
+    async fn list_rolebindings(
+        &self,
+        limit: Option<usize>,
+        offset: Option<usize>,
+    ) -> Result<Vec<RolebindingDoc>, DataStoreError> {
+        Store::list_rolebindings(self, limit, offset).await
+    }
+
+    async fn get_rolebinding(&self, id: &str) -> Result<Option<RolebindingDoc>, DataStoreError> {
+        Store::get_rolebinding(self, id).await
+    }
+
+    async fn create_rolebinding(
+        &self,
+        rolebinding: RolebindingDoc,
+    ) -> Result<RolebindingDoc, DataStoreError> {
+        Store::create_rolebinding(self, rolebinding).await
+    }
+
+    async fn put_rolebinding(
+        &self,
+        id: &str,
+        rolebinding: RolebindingDoc,
+    ) -> Result<RolebindingDoc, DataStoreError> {
+        Store::put_rolebinding(self, id, rolebinding).await
+    }
+
+    async fn delete_rolebinding(&self, id: &str) -> Result<RolebindingDoc, DataStoreError> {
+        Store::delete_rolebinding(self, id).await
     }
 }
 
